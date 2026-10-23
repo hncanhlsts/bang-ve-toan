@@ -1503,6 +1503,8 @@ function fIns(t,raw){
 function setPfx(p){pfx=p;$('#fPfx').textContent=p?'Ctrl+'+p.toUpperCase()+': gõ tiếp một phím'+(p==='g'?' chữ cái để ra chữ Hy Lạp':'')+'…':''}
 if(MFE){
   try{MFE.soundsDirectory=null}catch(_){}
+  /* chỉ rõ thư mục phông chữ toán: tự đoán theo đường dẫn thư viện bị sai khi tải từ CDN (…/mathlive.min.js/fonts) */
+  try{MFE.fontsDirectory=window.desktop?new URL('mathlive/fonts/',location.href).href:'https://cdn.jsdelivr.net/npm/mathlive@0.111.1/fonts/'}catch(_){}
   mf=new MFE();mf.id='fMath';mf.setAttribute('aria-label','Ô nhập công thức');$('#fMathBox').append(mf);
   try{mf.mathVirtualKeyboardPolicy='manual'}catch(_){}
   /* MathLive đẩy dấu mũ rộng, dấu cung lệch sang phải; ép chúng phủ đều lên cả cụm chữ. */
