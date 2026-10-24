@@ -127,6 +127,23 @@ dialog.wide{width:min(980px,calc(100% - 32px))}
 .clipGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:60vh;overflow:auto}
 .clipGrid canvas{width:60px;height:60px}#stampGrid canvas{width:48px;height:48px}
 #noteCols .col{width:38px;height:38px}
+.tvwrap{display:grid;grid-template-columns:minmax(300px,1fr) 1.15fr;gap:14px;align-items:start}
+.tvprops{max-height:62vh;overflow:auto;padding-right:6px;display:flex;flex-direction:column;gap:6px}
+.tvprops h4{margin:10px 0 0;font:600 12px var(--ui);text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tvf{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted);min-width:0;flex:1}.tvf.chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink)}
+.tvf input:not([type=checkbox]),.tvf select,.tvf textarea{font:14px var(--ui);padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);min-width:0}
+.tvf textarea{font-family:Consolas,monospace}.tvf input[type=color]{padding:1px;height:32px}
+.tvrow{display:flex;gap:8px;align-items:flex-end}.tvprops .hint{margin:0}.tvprops code{background:var(--hover);padding:0 3px;border-radius:3px}
+#tvPrev{width:100%;height:52vh;border:1px solid var(--line);border-radius:10px;display:block;background:var(--paper)}
+#tvErr{white-space:pre-wrap}
+.tvlib{display:grid;grid-template-columns:240px 1fr;gap:12px}.tvcats{display:flex;flex-direction:column;gap:4px;max-height:62vh;overflow:auto}
+.tvcats button{text-align:left;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px 10px;font:13px var(--ui);cursor:pointer}
+.tvcats button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent);font-weight:600}
+.tvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;max-height:62vh;overflow:auto;align-content:start}
+.tvcard{display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--line);border-radius:10px;padding:6px;background:#fff;cursor:pointer;color:#222;font:12.5px var(--ui)}
+.tvcard canvas{width:180px;height:120px}.tvcard:hover{border-color:var(--accent)}
+#chemInfo.ok{color:#1e8449}#chemInfo.bad{color:var(--danger)}
+@media (max-width:760px){.tvwrap,.tvlib{grid-template-columns:1fr}}
 /* loại nét bút, thanh thao tác */
 .penTypes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .penT{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:4px;cursor:pointer;color:var(--ink);font:12px var(--ui)}
@@ -537,7 +554,15 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
     <button type="button" class="item" id="mxChem">⚗️ Công thức, phương trình hoá học</button>
     <button type="button" class="item" id="mxTable">▦ Bảng (kẻ bảng, dán từ Excel, Word)</button>
     <button type="button" class="item" id="mxCallout">↖ Mũi tên chú thích (chỉ vào hình, ghi nhãn)</button>
-    <button type="button" class="item" id="mxClip">🧪 Hình dụng cụ thí nghiệm Lý, Hoá</button>
+    <button type="button" class="item" id="mxLib">📚 Thư viện hình theo môn (như ToanViet Studio)</button>
+    <button type="button" class="item" id="mxRegion">📈 Miền nghiệm của hệ bất phương trình</button>
+    <button type="button" class="item" id="mxNumline">↔ Trục số, biểu đồ Ven</button>
+    <button type="button" class="item" id="mxSolid">🧊 Khối hình không gian kiểu SGK (chóp, lăng trụ, trụ, nón, cầu)</button>
+    <button type="button" class="item" id="mxStat">📊 Thống kê: bảng số liệu, biểu đồ kiểu SGK</button>
+    <button type="button" class="item" id="mxLi">🔌 Vật lí: mạch điện, thấu kính, ký hiệu SGK</button>
+    <button type="button" class="item" id="mxHoaSinh">🧪 Hoá học, Sinh học: cấu hình electron, sơ đồ lai, ký hiệu SGK</button>
+    <button type="button" class="item" id="mxTieuHoc">🔢 Tiểu học: đặt tính, hình minh hoạ</button>
+    <button type="button" class="item" id="mxClip">⚗ Hình dụng cụ thí nghiệm đơn giản</button>
     <button type="button" class="item" id="mxNote">🗒️ Ghi chú dán</button>
     <button type="button" class="item" id="mxStamp">✅ Con dấu chấm bài (đúng, sai, sao, Tốt, 10…)</button>
     <button type="button" class="item" id="mxPick">🎲 Gọi tên ngẫu nhiên</button>
@@ -673,9 +698,10 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
 
   <dialog id="chemDlg"><form class="dlg" method="dialog" id="chemForm">
     <h2>Công thức, phương trình hoá học</h2>
-    <label>Gõ như viết: chỉ số tự hạ xuống (H2SO4), điện tích viết sau dấu ^ (Fe^3+, SO4^2-), mũi tên -&gt;, thuận nghịch &lt;=&gt;, điều kiện trong ngoặc vuông -&gt;[t°]<input type="text" id="chemIn" spellcheck="false" autocomplete="off"></label>
+    <label>Gõ như viết: chỉ số tự hạ xuống (H2SO4), điện tích viết sau dấu ^ (Fe^3+, SO4^2-), mũi tên -&gt;, thuận nghịch &lt;=&gt;, điều kiện trong ngoặc vuông -&gt;[t°], khí ↑, kết tủa ↓<input type="text" id="chemIn" spellcheck="false" autocomplete="off"></label>
     <div class="chips" id="chemKeys"></div>
     <canvas id="chemPrev"></canvas>
+    <div class="row"><p class="hint" id="chemInfo"></p><button type="button" class="btn" id="chemBal" hidden>⚖ Cân bằng tự động</button></div>
     <p class="hint">Mẫu:</p>
     <div class="chips" id="chemChips"></div>
     <div class="row end"><button type="button" class="btn plain" id="chemCancel">Huỷ</button><button class="btn primary" id="chemOk">Chèn vào trang</button></div>
@@ -726,6 +752,19 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
     <h2>Hình dụng cụ thí nghiệm</h2><p class="hint">Bấm để chèn; kéo góc để đổi cỡ, đổi màu như nét vẽ.</p>
     <div class="clipGrid" id="clipGrid"></div>
     <div class="row end"><button type="button" class="btn" id="clipClose">Đóng</button></div>
+  </div></dialog>
+
+  <dialog id="tvDlg" class="wide"><form class="dlg" method="dialog" id="tvForm" novalidate>
+    <h2 id="tvTitle">Hình</h2>
+    <div class="tvwrap"><div class="tvprops" id="tvProps"></div><div class="tvside"><canvas id="tvPrev"></canvas><div class="err" id="tvErr"></div></div></div>
+    <div class="row end"><button type="button" class="btn plain" id="tvCancel">Huỷ</button><button class="btn primary" id="tvOk">Chèn vào trang</button></div>
+  </form></dialog>
+
+  <dialog id="tvLibDlg" class="wide"><div class="dlg">
+    <h2>Thư viện hình theo môn</h2>
+    <p class="hint">Cùng bộ vẽ với ToanViet Studio: hình đúng cách trình bày của sách giáo khoa. Bấm để chèn; nhấp đúp vào hình trên bảng để đổi số liệu.</p>
+    <div class="tvlib"><div class="tvcats" id="tvCats"></div><div class="tvgrid" id="tvGrid"></div></div>
+    <div class="row end"><button type="button" class="btn" id="tvLibClose">Đóng</button></div>
   </div></dialog>
 
   <dialog id="daDlg"><div class="dlg">
@@ -782,8 +821,18 @@ window.MathJax={svg:{fontCache:'none',mtextFont:'Times New Roman, Times, serif'}
 <script src="https://cdn.jsdelivr.net/npm/mathlive@0.111.1/mathlive.min.js"></script>
 <!-- Bộ dựng hình của ToanViet Studio (cùng tác giả): biểu thức, hình phẳng, hình không gian -->
 <script src="tv/mathexpr.js"></script>
+<script src="tv/numfmt.js"></script>
+<script src="tv/graph.js"></script>
+<script src="tv/bbt.js"></script>
+<script src="tv/solid.js"></script>
 <script src="tv/plane.js"></script>
+<script src="tv/sgk.js"></script>
+<script src="tv/khtn.js"></script>
+<script src="tv/hoahoc.js"></script>
+<script src="tv/numline.js"></script>
 <script src="tv/space.js"></script>
+<script src="tv/tieuhoc.js"></script>
+<script src="tv/minhhoa.js"></script>
 <script>
 (()=>{
 const $=s=>document.querySelector(s);
@@ -1162,6 +1211,7 @@ function drawObj(c,o,scale){
   else if(o.type==='tvfig')drawTv(c,o);
   else if(o.type==='rev')drawRev(c,o);
   else if(o.type==='chart')drawChart(c,o);
+  else if(o.type==='tvo')drawTvo(c,o);
   else if(o.type==='table')drawTable(c,o);
   else if(o.type==='stamp')drawStamp(c,o);
   else if(o.type==='note')drawNote(c,o);
@@ -2134,8 +2184,8 @@ function parseChart(text){
   return{labels,series};
 }
 function chText(o){const sep=';';return[[o.xname||''].concat(o.series.map(s=>s.name)).join(sep)].concat(o.labels.map((l,j)=>[l].concat(o.series.map(s=>chFmt(s.v[j]))).join(sep))).join('\n')}
-function niceStep(range,n){const raw=range/Math.max(1,n),p=Math.pow(10,Math.floor(Math.log10(raw||1))),m=raw/p;return(m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p}
-function niceAxis(lo,hi){if(!(hi>lo)){hi=lo+1}const st=niceStep(hi-lo,5);return{lo:Math.floor(lo/st)*st,hi:Math.ceil(hi/st-1e-9)*st,st}}
+function chNiceStep(range,n){const raw=range/Math.max(1,n),p=Math.pow(10,Math.floor(Math.log10(raw||1))),m=raw/p;return(m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p}
+function niceAxis(lo,hi){if(!(hi>lo)){hi=lo+1}const st=chNiceStep(hi-lo,5);return{lo:Math.floor(lo/st)*st,hi:Math.ceil(hi/st-1e-9)*st,st}}
 function drawChart(c,o){
   const W0=o.w,H0=o.h,ink=res(o.color||'ink'),fs=clamp(Math.min(W0,H0)/24,10,30);
   c.save();c.translate(o.x,o.y);c.lineCap='butt';c.lineJoin='round';c.setLineDash([]);
@@ -2935,6 +2985,254 @@ function drawGts(c,o){
     for(const q of r.pts){const[x,y]=T(q.p);c.beginPath();c.arc(x,y,3.4,0,7);c.fillStyle=col;c.fill();if(q.isNew){c.fillStyle=o.tv.lcolor||'#1a6fc4';c.font='italic 16px "Times New Roman",serif';c.fillText(q.name,x+5,y-3)}}
     c.restore()}
 }
+/* ---------- mọi hình chèn được trong ToanViet Studio: dùng thẳng bộ vẽ của ToanViet (cùng tác giả) ----------
+   Đồ thị, miền nghiệm, bảng biến thiên / xét dấu, trục số, biểu đồ Ven, khối hình không gian kiểu SGK, ký hiệu SGK
+   Vật lí – Hoá học – Sinh học, hình theo môn (thống kê, mạch điện, thấu kính, cấu hình electron, sơ đồ lai…),
+   đặt tính và hình minh hoạ Tiểu học. Hình ra y hệt ToanViet (đúng cách trình bày SGK); khung thuộc tính chép theo ToanViet.
+   Đối tượng {type:'tvo', t: loại ToanViet, …thuộc tính ToanViet, tw, th: cỡ gốc như trên trang ToanViet, x, y, w, h: cỡ trên bảng}. */
+const TVX={Graph:window.Graph,BBT:window.BBT,Solid:window.Solid,SGK:window.SGK,KH:window.KhoaHoc,HH:window.HoaHoc,NL:window.NumLine,TH:window.TieuHoc,MH:window.MinhHoa};
+const tvxOn=!!(TVX.Graph&&TVX.BBT&&TVX.SGK&&TVX.KH&&TVX.NL&&TVX.TH&&TVX.MH&&TVX.Solid);
+const TVK=1.8; /* trang ToanViet rộng 794 điểm ảnh, trang bảng rộng 1440 */
+const tvOwn=/^(type|t|tw|th|x|y|w|h)$/;
+/* đối tượng trên bảng ⇄ đối tượng theo cách của ToanViet (w, h là cỡ gốc) */
+function tvD(o){const d={};for(const k in o)if(!tvOwn.test(k))d[k]=o[k];d.type=o.t;d.w=o.tw;d.h=o.th;return d}
+function tvRender(d){
+  const G=TVX;switch(d.type){
+    case'graph':return G.Graph.renderGraph(d,d.w,d.h);case'region':return G.Graph.renderRegion(d,d.w,d.h);case'bbt':return G.BBT.render(d,d.w,d.h);
+    case'solid':return G.Solid.render(d,d.w,d.h);case'sym':return G.SGK.render(d,d.w,d.h);case'numline':return G.NL.render(d,d.w,d.h);
+    case'venn':return G.NL.renderVenn(d,d.w,d.h);case'dattinh':{const r=G.TH.renderDatTinh(d);d.w=r.w;d.h=r.h;return r}
+    case'minhhoa':return G.MH.render(d,d.w,d.h);case'khtn':return G.KH.render(d,d.w,d.h);
+  }
+  throw Error('Không có loại hình '+d.type);
+}
+const escX=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* ghép hình SVG và các nhãn (công thức dựng bằng MathJax) thành một ảnh SVG */
+function tvSvg(d,S){
+  const r=tvRender(d),W=d.w,H=d.h,dark=document.documentElement.dataset.theme==='dark';
+  /* vài hình ghi font-family=""Times New Roman", …" (trang HTML bỏ qua được, ảnh SVG thì hỏng): đổi ngoặc trong thành ngoặc đơn */
+  let s=r.svg.replace(/=""([^"]*)"([^"]*)"/g,"=\"'$1'$2\"");
+  for(const l of r.labels||[]){const sz=l.size||14,col=l.color||'#111111';
+    if(l.tex!==undefined&&window.mjReady){
+      let n;try{n=mjx(String(l.tex),false).querySelector('svg')}catch(_){n=null}
+      if(n){const w=parseFloat(n.getAttribute('width'))*sz*.4306,h=parseFloat(n.getAttribute('height'))*sz*.4306,x=l.ax==='l'?l.x:l.ax==='r'?l.x-w:l.x-w/2,y=l.y-h/2;
+        n.setAttribute('width',w);n.setAttribute('height',h);n.setAttribute('x',x);n.setAttribute('y',y);n.removeAttribute('style');
+        if(l.bg)s+='<rect x="'+(x-3)+'" y="'+(y-1)+'" width="'+(w+6)+'" height="'+(h+2)+'" rx="3" fill="#ffffff" fill-opacity=".82"/>';
+        s+=new XMLSerializer().serializeToString(n).replace(/currentColor/g,col);continue}}
+    const t=l.tex!==undefined?String(l.tex).replace(/\\[a-z]+\s*/gi,'').replace(/[{}_^$]/g,''):String(l.text||'');
+    s+='<text x="'+l.x+'" y="'+l.y+'" font-family="Times New Roman, serif" font-size="'+sz+'" fill="'+col+'" dominant-baseline="central" text-anchor="'+(l.ax==='l'?'start':l.ax==='r'?'end':'middle')+'">'+escX(t)+'</text>'}
+  /* nền tối: nét đen đổi sang màu mực để còn nhìn thấy */
+  if(dark)s=s.replace(/#(?:111111|111|000000|000|222222|222)\b/gi,theme.ink);
+  return{svg:'<svg xmlns="http://www.w3.org/2000/svg" width="'+W*S+'" height="'+H*S+'" viewBox="0 0 '+W+' '+H+'">'+s+'</svg>',errors:r.errors||[],w:W,h:H};
+}
+const tvCache=new Map();
+function tvImg(d){
+  const key=JSON.stringify(d)+'|'+!!window.mjReady+'|'+theme.ink;let e=tvCache.get(key);if(e)return e;
+  e={ready:false,err:''};tvCache.set(key,e);if(tvCache.size>300)tvCache.delete(tvCache.keys().next().value);
+  try{const r=tvSvg(d,2.5);e.errors=r.errors;e.w=r.w;e.h=r.h;const im=new Image();im.onload=()=>{e.ready=true;e.img=im;requestDraw();if(tvDlg.open)tvPrevDraw()};im.onerror=()=>{e.err='Không dựng được hình'};
+    im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(r.svg)}catch(err){e.err=err.message||String(err)}
+  return e;
+}
+function drawTvo(c,o){
+  const e=tvImg(tvD(o));
+  if(e.ready)c.drawImage(e.img,o.x,o.y,o.w,o.h);
+  else{c.save();c.strokeStyle=theme.muted;c.lineWidth=1;c.setLineDash([6,4]);c.strokeRect(o.x,o.y,o.w,o.h);
+    if(e.err){c.fillStyle=theme.danger||'#c00';c.font='14px '+FONT;c.textBaseline='top';c.fillText(e.err.slice(0,80),o.x+6,o.y+6)}c.restore()}
+}
+/* ---------- thuộc tính mặc định (như ToanViet) ---------- */
+const TV_SOLID_DEF={
+  chop3:{base:'deu',apex:'A',points:'M = BC',segs:'AM, SM'},chop4:{apex:'tam',points:'O = AC',segs:'AC, BD, SO'},tudien:{points:'G = BCD',segs:'AG'},
+  hop:{b:3,ch:3,points:'',segs:"AC'"},lapphuong:{points:'',segs:"A'C, BD"},langtru3:{base:'deu',ch:5,points:'',segs:''},chopcut:{ratio:.5,ch:3,points:'',segs:''},
+  tru:{a:2,ch:4},non:{a:2,ch:4},noncut:{a:2.4,b:1.2,ch:3},cau:{a:2}};
+const jc=v=>JSON.parse(JSON.stringify(v));
+function tvxDefaults(type,kind){
+  const G=TVX;switch(type){
+    case'graph':return{w:360,h:330,funcs:'x^3 - 3x',xmin:'-4',xmax:'4',ymin:'-4',ymax:'4',xstep:'1',ystep:'1',grid:true,ticks:true,legend:true,proj:true,points:'',guides:'',shadeA:'',shadeB:'',stroke:1.8};
+    case'bbt':return{w:520,h:170,expr:'x^3 - 3x',a:'',b:'',xrow:'',drow:'',frow:'',lx:'x',ld:"y'",lf:'y'};
+    case'sign':return{type:'bbt',signOnly:true,w:480,h:76,expr:'(x-1)(x+2)/(x-3)',a:'',b:'',xrow:'',drow:'',frow:'',lx:'x',ld:'f(x)',lf:''};
+    case'region':return{w:360,h:360,ineqs:'x + y <= 4\nx - 2y <= 2\nx >= 0\ny >= 0',style:'hatch',vertices:true,lineNames:true,xmin:'-2',xmax:'6',ymin:'-2',ymax:'6',xstep:'1',ystep:'1',grid:false,ticks:true};
+    case'solid':return Object.assign({kind,w:300,h:300,a:4,b:4,ch:4,yaw:-18,pitch:20,labels:true,fill:false,stroke:1.5,color:'#111111',points:'',segs:''},TV_SOLID_DEF[kind]);
+    case'sym':return Object.assign({kind,label:'',data:'ud ud u u u',inner:true,stroke:1.5,color:'#111111'},G.SGK.sizeOf(kind));
+    case'numline':return Object.assign({kind,color:'#111111',pcolor:'#d62728',ncolor:'#1f77b4',xname:''},jc(G.NL.KINDS[kind][1]));
+    case'venn':return Object.assign({kind,color:'#111111'},jc(G.NL.VKINDS[kind][1]));
+    case'dattinh':return Object.assign({kind,expr:'356 + 278',size:26,an:'none',nan:3,seed:1,dapan:false,nho:false,kieuchia:'day',thapphan:0,color:'#111111',acolor:'#d62728',w:100,h:100},G.TH.DT_KINDS[kind][1]);
+    case'minhhoa':return Object.assign({kind,color:'#222222'},jc(G.MH.KINDS[kind][1]));
+    case'khtn':return Object.assign({kind},jc(G.KH.KINDS[kind][1]));
+  }
+}
+function tvNew(type,kind){const d=tvxDefaults(type,kind);if(!d.type)d.type=type;if(d.type==='bbt'&&!d.xrow){try{tvAutoBBT(d)}catch(_){}}return d}
+function tvAutoBBT(o){const r=TVX.BBT.analyse(o.expr,o.a,o.b,!!o.signOnly);o.xrow=r.xrow;o.drow=r.drow;o.frow=r.frow;return r.note}
+/* đặt hình ToanViet lên bảng, giữa màn hình, phóng theo tỉ lệ trang */
+function tvPlace(d,k){
+  k=k||TVK;const o={type:'tvo',t:d.type,tw:d.w,th:d.h};for(const key in d)if(!/^(type|w|h)$/.test(key))o[key]=d[key];
+  const c=center();o.w=d.w*k;o.h=d.h*k;o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);setTool('select');sel.clear();sel.add(o);commit();return o;
+}
+/* ---------- hộp thoại thuộc tính (cùng các ô nhập, cùng lời nhắc như khung Thuộc tính của ToanViet) ---------- */
+const tvDlg=$('#tvDlg');let tvDraft=null,tvEditObj=null;
+const TV_TITLE={graph:'Đồ thị hàm số',region:'Miền nghiệm của hệ bất phương trình',bbt:'Bảng biến thiên',solid:'Hình không gian',sym:'Ký hiệu SGK',numline:'Trục số',venn:'Biểu đồ Ven',dattinh:'Đặt tính',minhhoa:'Hình minh hoạ',khtn:'Hình theo môn'};
+function openTvo(target){
+  tvEditObj=target&&target.type==='tvo'?target:null;tvDraft=tvEditObj?tvD(tvEditObj):target;
+  $('#tvTitle').textContent=tvDraft.signOnly?'Bảng xét dấu':TV_TITLE[tvDraft.type]||'Hình';$('#tvOk').textContent=tvEditObj?'Cập nhật':'Chèn vào trang';
+  tvPanel();tvDlg.showModal();requestAnimationFrame(tvPrevDraw);
+}
+let tvPT=0;function tvUpd(){clearTimeout(tvPT);tvPT=setTimeout(tvPrevDraw,60)}
+function tvPrevDraw(){
+  const cvp=$('#tvPrev'),R=cvp.getBoundingClientRect();if(!R.width||!tvDraft)return;cvp.width=R.width*dpr;cvp.height=R.height*dpr;
+  const c=cvp.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.fillStyle=theme.paper;c.fillRect(0,0,R.width,R.height);
+  const d=jc(tvDraft),e=tvImg(d);$('#tvErr').textContent=e.err||(e.errors||[]).join('\n');
+  if(d.type==='dattinh'&&e.w){tvDraft.w=e.w;tvDraft.h=e.h}
+  if(!e.ready)return;const k=Math.min((R.width-16)/d.w,(R.height-16)/d.h,2.2);c.drawImage(e.img,(R.width-d.w*k)/2,(R.height-d.h*k)/2,d.w*k,d.h*k);
+}
+function tvPanel(){
+  const P=$('#tvProps'),o=tvDraft,G=TVX;P.textContent='';
+  const mk=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+  const add=e=>{P.append(e);return e},h4=t=>add(mk('h4','',t)),help=h=>{const p=mk('p','hint');p.innerHTML=h;return add(p)};
+  const btn=(t,f,pri)=>{const b=mk('button','btn'+(pri?' primary':''),t);b.type='button';b.onclick=f;return add(b)};
+  const row=(...els)=>{const d=mk('div','tvrow');d.append(...els);return add(d)};
+  const msg=(t,bad)=>toast(t);const buildProps=tvPanel,renderObj=tvUpd;
+  function field(k,label,type,opt){
+    const w=mk('label','tvf'+(type==='chk'?' chk':''));let inp;
+    if(type==='chk'){inp=mk('input');inp.type='checkbox';inp.checked=!!o[k];inp.onchange=()=>{o[k]=inp.checked;tvUpd()};w.append(inp);if(label)w.append(mk('span','',label));inp.dataset.k=k;return w}
+    if(label)w.append(mk('span','',label));
+    if(type==='sel'){inp=mk('select');for(const v in opt){if(v==='__on')continue;const op=mk('option','',opt[v]);op.value=v;inp.append(op)}inp.value=o[k]==null?'':String(o[k]);
+      inp.onchange=()=>{if(opt.__on)opt.__on(inp.value);o[k]=inp.value;tvUpd();tvPanel()}}
+    else if(type==='area'){inp=mk('textarea');inp.rows=(opt&&opt.rows)||3;inp.value=o[k]==null?'':o[k];inp.spellcheck=false;inp.oninput=()=>{o[k]=inp.value;tvUpd()}}
+    else{inp=mk('input');inp.type=type==='num'?'number':type==='color'?'color':'text';if(type==='num')inp.step=opt||'any';inp.value=o[k]==null?'':o[k];inp.spellcheck=false;inp.autocomplete='off';
+      inp.oninput=()=>{o[k]=type==='num'?(inp.value===''?'':+inp.value):inp.value;tvUpd()}}
+    inp.dataset.k=k;w.append(inp);return w;
+  }
+  const range=()=>{h4('Hệ trục');row(field('xmin','x từ'),field('xmax','đến'));row(field('ymin','y từ'),field('ymax','đến'));row(field('xstep','Bước chia x'),field('ystep','Bước chia y'));
+    add(field('grid','Hiện lưới','chk'));add(field('ticks','Hiện vạch chia và số','chk'))};
+  if(o.type==='graph'){
+    add(field('funcs','Hàm số y = … (mỗi dòng một hàm)','area',{rows:3}));add(field('legend','Hiện công thức hàm số','chk'));add(field('piTicks','Chia trục x theo π/2 (hàm lượng giác)','chk'));
+    range();h4('Điểm, tiệm cận, hình phẳng');add(field('points','Điểm đánh dấu, vd: A(1; -2)','area',{rows:2}));add(field('proj','Vẽ đường gióng xuống hai trục','chk'));
+    add(field('guides','Đường nét đứt, vd: x = 1, y = 2'));row(field('shadeA','Tô hình phẳng từ x ='),field('shadeB','đến x ='));
+    help('Hình phẳng giới hạn bởi hàm thứ nhất và hàm thứ hai (hoặc trục Ox nếu chỉ có một hàm).');add(field('stroke','Độ dày nét','num',0.1));
+    btn('Đồ thị có tham số, thanh trượt (kéo a, b, c cho đồ thị chạy)…',()=>{tvDlg.close();openGraph()});
+  }else if(o.type==='bbt'){
+    add(field('expr',o.signOnly?'Biểu thức f(x) cần xét dấu':'Hàm số y = f(x)'));row(field('a','Khảo sát từ (trống = −∞)'),field('b','đến (trống = +∞)'));
+    btn(o.signOnly?'⚙ Lập bảng xét dấu tự động':'⚙ Lập bảng biến thiên tự động',()=>{try{const note=tvAutoBBT(o);tvUpd();buildProps();msg(note||'Đã lập bảng cho '+o.expr)}catch(e){msg('Lỗi: '+e.message,true)}},true);
+    h4('Chỉnh tay (LaTeX, ngăn cách bằng |)');add(field('xrow','Hàng x','area',{rows:2}));add(field('drow',o.signOnly?'Hàng dấu: dấu | giá trị | dấu …':"Hàng y': dấu | giá trị | dấu …",'area',{rows:2}));
+    if(!o.signOnly)add(field('frow','Hàng y: giá trị tại từng cột','area',{rows:3}));
+    row(field('lx','Nhãn hàng 1'),field('ld','Nhãn hàng 2'),...(o.signOnly?[]:[field('lf','Nhãn hàng 3')]));
+    help('Dấu: <code>+</code> <code>-</code>; <code>x</code> = khoảng không xác định (gạch chéo); <code>||</code> = không xác định tại điểm. Ở hàng y, viết <code>-\\infty || +\\infty</code> cho giới hạn trái || phải. Mũi tên tự vẽ theo dấu của y\'.');
+  }else if(o.type==='region'){
+    add(field('ineqs','Hệ bất phương trình (mỗi dòng một BPT)','area',{rows:5}));
+    add(field('style','Cách thể hiện','sel',{hatch:'Gạch bỏ phần không là nghiệm (kiểu SGK)',fill:'Tô màu miền nghiệm'}));
+    add(field('vertices','Ghi toạ độ các đỉnh của miền nghiệm','chk'));add(field('lineNames','Đặt tên đường thẳng d₁, d₂, …','chk'));
+    add(field('vnames','Tên đỉnh theo lời giải (mỗi dòng một điểm, vd A(0; 3); bỏ trống: tự đặt A, B, C…)','area',{rows:3}));
+    add(field('lnames','Tên đường thẳng theo thứ tự các BPT (mỗi dòng một tên; bỏ trống cả ô: d₁, d₂…)','area',{rows:3}));
+    help('Dùng <code>&lt;=</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&gt;</code>. Bất phương trình ngặt được vẽ bằng nét đứt.');range();
+  }else if(o.type==='solid'){
+    const round=G.Solid.isRound(o.kind);
+    add(field('kind','Loại hình','sel',Object.assign({__on:k=>Object.assign(o,{points:'',segs:''},TV_SOLID_DEF[k])},G.Solid.KINDS)));
+    if(round){row(field('a',o.kind==='noncut'?'Bán kính đáy lớn':'Bán kính','num',0.1),...(o.kind==='noncut'?[field('b','Bán kính đáy nhỏ','num',0.1)]:[]));
+      if(o.kind!=='cau')add(field('ch','Chiều cao','num',0.1));add(field('pitch','Góc nhìn từ trên xuống (độ)','num'))}
+    else{const cube=o.kind==='lapphuong'||o.kind==='tudien';
+      row(field('a','Cạnh a','num',0.1),...(cube||(/chop3|langtru3/.test(o.kind)&&o.base==='deu')?[]:[field('b','Cạnh b','num',0.1)]),...(cube?[]:[field('ch','Chiều cao','num',0.1)]));
+      if(o.kind==='chop3'||o.kind==='langtru3')add(field('base','Đáy','sel',{deu:'Tam giác đều cạnh a',vuongA:'Tam giác vuông tại A (AB = a, AC = b)',vuongB:'Tam giác vuông tại B (BC = a, BA = b)'}));
+      if(o.kind==='chop3'||o.kind==='chop4')add(field('apex','Chân đường cao','sel',{tam:'Tâm đáy (hình chóp đều)',A:'Đỉnh A (SA ⊥ đáy)',B:'Đỉnh B (SB ⊥ đáy)'}));
+      if(o.kind==='chopcut')add(field('ratio','Tỉ số đáy nhỏ / đáy lớn','num',0.05));
+      row(field('yaw','Xoay ngang (độ)','num'),field('pitch','Nhìn từ trên (độ)','num'));
+      h4('Điểm và đoạn thẳng thêm');add(field('points','Điểm thêm (mỗi dòng một điểm)','area',{rows:3}));
+      help('<code>M = SA</code>: trung điểm SA · <code>O = AC</code>: tâm đáy · <code>G = ABC</code>: trọng tâm tam giác.');add(field('segs','Đoạn nối thêm, vd: SO, AC, BM'));
+      help('Nét liền / nét đứt được xác định tự động theo góc nhìn.')}
+    add(field('labels','Hiện tên điểm / kích thước','chk'));add(field('fill','Tô nhạt các mặt nhìn thấy','chk'));row(field('stroke','Độ dày nét','num',0.1),field('color','Màu nét','color'));
+  }else if(o.type==='sym'){
+    const kinds={__on:k=>Object.assign(o,G.SGK.sizeOf(k))};G.SGK.GROUPS.forEach(g=>{for(const k in g[1])kinds[k]=g[1][k][0]});
+    add(field('kind','Ký hiệu','sel',kinds));
+    if(o.kind==='oluongtu'){add(field('data','Các ô (cách nhau bằng dấu cách)'));help('<code>ud</code>: hai electron ghép đôi · <code>u</code>: một electron · <code>d</code>: một electron quay xuống · <code>-</code>: ô trống. Ví dụ 2p⁴: <code>ud u u</code>')}
+    add(field('label','Nhãn phía trên (LaTeX, vd R_1)'));add(field('inner','Hiện chữ chú thích có sẵn trong hình','chk'));row(field('stroke','Độ dày nét','num',0.1),field('color','Màu nét','color'));
+    help('Ghép các ký hiệu với đoạn thẳng để vẽ sơ đồ mạch điện; muốn vẽ cả mạch theo lưới thì dùng mẫu “Mạch điện” trong Hình theo môn → Vật lí.');
+  }else if(o.type==='numline'){
+    const kinds={__on:k=>Object.assign(o,jc(G.NL.KINDS[k][1]))};for(const k in G.NL.KINDS)kinds[k]=G.NL.KINDS[k][0];
+    add(field('kind','Mẫu (chọn lại sẽ thay nội dung bên dưới)','sel',kinds));
+    h4('Tập hợp, bất phương trình (mỗi dòng một trục số)');const sets=add(field('sets','','area',{rows:4}));
+    sets.querySelector('textarea').addEventListener('input',()=>{const n=String(o.sets||'').split('\n').filter(t=>t.trim()).length;if(n>0){o.h=G.NL.rowsH(o.sets);const hi=P.querySelector('[data-k="h"]');if(hi)hi.value=o.h}});
+    help('Bất phương trình: <code>x &gt; 4</code> · <code>x &lt;= 3/4</code> · <code>-2 &lt; x &lt;= 3</code> · <code>x &lt; -1 hoặc x &gt;= 2</code> · <code>x != 2</code>.<br>Tập hợp: <code>(-2; 3)</code> · <code>[1; +oo)</code> · <code>(-oo; sqrt(2)]</code> · <code>{1; 2; 5}</code> · <code>R</code>.');
+    add(field('style','Cách thể hiện','sel',{hatch:'Gạch bỏ phần không thuộc tập, dùng ngoặc [ ( (kiểu SGK)',bold:'Tô đậm phần thuộc tập, chấm tròn đặc / rỗng'}));
+    add(field('rowLabels','Ghi tập hợp ở đầu mỗi trục (kèm kết quả phép toán)','chk'));add(field('colorful','Mỗi tập một màu','chk'));add(field('zero','Luôn ghi điểm 0','chk'));
+    h4('Điểm trên trục số (mỗi dòng một điểm)');add(field('points','','area',{rows:4}));
+    help('<code>A = 7/4</code> · <code>N = -sqrt(2)</code> · <code>-2 1/3</code> (hỗn số) · <code>0,3</code> · <code>4,1(6)</code> (tuần hoàn). Thêm <code>: nhãn LaTeX</code> để tự ghi nhãn, vd <code>M = 1.41 : \\sqrt{2}</code>.');
+    add(field('plabel','Nhãn điểm','sel',{ten:'Tên điểm ở trên (không tên thì ghi số)',so:'Giá trị ở trên, tên điểm ở dưới'}));
+    h4('Trục số');add(field('ticks','Vạch chia đơn vị','chk'));add(field('nums','Ghi số dưới vạch chia','chk'));
+    row(field('step','Đơn vị (khoảng giữa hai số)','num',0.5),field('sub','Chia mỗi đơn vị thành','num',1));row(field('xmin','Hiện từ (trống = tự động)'),field('xmax','đến'));
+    add(field('xname','Tên ẩn ở cuối trục (vd x)'));row(field('color','Màu trục','color'),field('pcolor','Màu điểm','color'),field('ncolor','Màu tên','color'));
+  }else if(o.type==='venn'){
+    const kinds={__on:k=>Object.assign(o,jc(G.NL.VKINDS[k][1]))};for(const k in G.NL.VKINDS)kinds[k]=G.NL.VKINDS[k][0];
+    add(field('kind','Mẫu (chọn lại sẽ thay nội dung bên dưới)','sel',kinds));add(field('layout','Kiểu biểu đồ','sel',G.NL.LAYOUTS));add(field('names','Tên các tập (cách nhau bằng dấu phẩy)'));
+    row(field('unv','Vẽ tập bao (khung chữ nhật)','chk'),field('uname','Tên tập bao'));h4('Phần tử (mỗi dòng một vùng)');add(field('elements','','area',{rows:4}));
+    help('<code>A: 1; 3; 5</code> chỉ thuộc A · <code>AB: 4; 27</code> thuộc cả A và B · <code>ABC: 0</code> · <code>ngoài: 8; 9</code> ngoài các tập.');
+    h4('Tô vùng');add(field('shade','Biểu thức vùng tô (trống = không tô)'));help('<code>A ∩ B</code> · <code>A ∪ B</code> · <code>A \\ B</code> · <code>(A ∪ B) ∩ C</code> · <code>A\'</code> (phần bù).');
+    row(field('style','Kiểu tô','sel',{fill:'Tô màu',hatch:'Gạch chéo'}),field('fill','Màu tô','color'));add(field('colorful','Mỗi tập một màu viền','chk'));
+    row(field('esize','Cỡ chữ phần tử','num'),field('stroke','Độ dày nét','num',0.1),field('color','Màu','color'));
+  }else if(o.type==='dattinh'){
+    const kinds={__on:k=>Object.assign(o,{kieuchia:'day',thapphan:0},G.TH.DT_KINDS[k][1])};for(const k in G.TH.DT_KINDS)kinds[k]=G.TH.DT_KINDS[k][0];
+    add(field('kind','Mẫu','sel',kinds));add(field('expr','Phép tính')).querySelector('input').addEventListener('change',()=>buildProps());
+    try{const nt=G.TH.renderDatTinh(o).note;if(nt)help('<b>'+escX(nt)+'</b> (số chia là số thập phân: chuyển dấu phẩy như sách lớp 5).')}catch(_){}
+    help('Gõ <code>356 + 278</code> · <code>732 - 458</code> · <code>236 x 47</code> · <code>4536 : 12</code> · số thập phân dùng dấu phẩy: <code>45,08 + 24,9</code>.');
+    if(/:|÷/.test(o.expr)){add(field('kieuchia','Cách viết phép chia','sel',{day:'Đầy đủ: ghi tích và dấu trừ ở từng bước (lớp 3)',gon:'Viết gọn: chỉ ghi số dư (lớp 4, 5)'}));
+      add(field('thapphan','Chia tiếp đến số chữ số ở phần thập phân của thương (0 = dừng, ghi số dư)','num',1));if(o.kieuchia!=='gon')add(field('dautru','Ghi dấu trừ ở mỗi bước (sách Kết nối tri thức không ghi)','chk'))}
+    add(field('phong','Phông chữ số','sel',{sgk:'Như sách giáo khoa (không chân)',times:'Times New Roman'}));
+    h4('Dùng làm bài tập');add(field('an','Phần cho học sinh làm','sel',{none:'Hiện đầy đủ (bài mẫu)',kq:'Để trống kết quả (học sinh tự tính)',otrong:'Ô trống ở từng chữ số của kết quả',ngaunhien:'Điền chữ số còn thiếu (giấu ngẫu nhiên)'}));
+    if(o.an==='ngaunhien')row(field('nan','Số chữ số giấu','num',1),field('seed','Số xáo (đổi để giấu chỗ khác)','num',1));
+    add(field('dapan','Hiện đáp án (màu đỏ) — bản cho giáo viên','chk'));add(field('nho','Ghi số nhớ nhỏ (cộng, nhân với số có một chữ số)','chk'));
+    row(field('size','Cỡ chữ số','num',1),field('color','Màu','color'),field('acolor','Màu đáp án','color'));
+  }else if(o.type==='minhhoa'||o.type==='khtn'){
+    const MH=o.type==='khtn'?G.KH:G.MH,base=o.type==='khtn'?{}:{color:'#222222'};
+    const kinds={__on:k=>{Object.keys(o).forEach(key=>{if(key!=='type')delete o[key]});Object.assign(o,{type:tvDraft.type,kind:k},base,jc(MH.KINDS[k][1]))}};
+    for(const k in MH.KINDS)if(o.type!=='khtn'||G.KH.MON[k]===G.KH.MON[o.kind])kinds[k]=MH.KINDS[k][0];
+    add(field('kind','Mẫu (chọn lại sẽ thay nội dung bên dưới)','sel',kinds));
+    (MH.FIELDS[o.ve]||[]).filter(f=>MH.fieldUse(o,f[0])).forEach(f=>{
+      const el=add(field(f[0],MH.fieldLabel(o,f[0],f[1]),f[2]==='area'?'area':f[2]||'text',f[2]==='area'?{rows:o.ve==='machdien'?9:5}:f[3]));
+      if(f[2]==='sel')el.querySelector('select').addEventListener('change',()=>buildProps())});
+    if(MH.HELP[o.ve])help(MH.HELP[o.ve]);if(o.type==='minhhoa')add(field('color','Màu chữ, màu nét','color'));
+  }
+  if(o.type!=='dattinh'){h4('Cỡ hình (bố cục bên trong)');row(field('w','Rộng','num'),field('h','Cao','num'));help('Muốn phóng to cả hình trên bảng: chọn hình rồi kéo ô vuông ở góc.')}
+}
+$('#tvCancel').onclick=()=>tvDlg.close();
+$('#tvForm').addEventListener('submit',()=>{
+  const d=jc(tvDraft);try{tvRender(jc(d))}catch(e){}
+  if(d.type==='dattinh'){const r=TVX.TH.renderDatTinh(d);d.w=r.w;d.h=r.h}
+  if(tvEditObj){const o=tvEditObj,k=o.w/o.tw;for(const key of Object.keys(o))if(!tvOwn.test(key))delete o[key];for(const key in d)if(!/^(type|w|h)$/.test(key))o[key]=d[key];
+    o.t=d.type;o.tw=d.w;o.th=d.h;o.w=d.w*k;o.h=d.h*k;commit()}
+  else tvPlace(d);
+});
+/* ---------- thư viện: chọn loại hình theo môn, có hình xem trước ---------- */
+const tvLib=$('#tvLibDlg');
+function tvCats(){
+  const G=TVX,cats=[],it=(type,kind,name)=>({type,kind,name});
+  const kh=mon=>{const a=[];G.KH.GROUPS.forEach(g=>{if(g[1]===mon)for(const k in g[2])a.push(it('khtn',k,g[2][k][0]))});return a};
+  const sg=re=>{const a=[];G.SGK.GROUPS.forEach(g=>{if(re.test(g[0]))for(const k in g[1])a.push(it('sym',k,g[1][k][0]))});return a};
+  cats.push(['Toán – Đồ thị, bảng',[it('graph',null,'Đồ thị hàm số'),it('region',null,'Miền nghiệm của hệ bất phương trình'),it('bbt',null,'Bảng biến thiên'),it('sign',null,'Bảng xét dấu')]]);
+  cats.push(['Toán – Trục số, tập hợp',[...Object.keys(G.NL.KINDS).map(k=>it('numline',k,G.NL.KINDS[k][0])),...Object.keys(G.NL.VKINDS).map(k=>it('venn',k,'Biểu đồ Ven: '+G.NL.VKINDS[k][0]))]]);
+  cats.push(['Toán – Khối hình không gian',Object.keys(G.Solid.KINDS).map(k=>it('solid',k,G.Solid.KINDS[k]))]);
+  cats.push(['Toán – Thống kê, xác suất',kh('toan')]);
+  cats.push(['Vật lí',[...kh('li'),...sg(/Vật lí/)]]);
+  cats.push(['Hoá học',[it('chem',null,'Phương trình hoá học (kiểm tra, tự cân bằng)'),...kh('hoa'),...sg(/Hoá/)]]);
+  cats.push(['Sinh học',[...kh('sinh'),...sg(/Sinh/)]]);
+  cats.push(['Tiểu học – Đặt tính',Object.keys(G.TH.DT_KINDS).map(k=>it('dattinh',k,G.TH.DT_KINDS[k][0]))]);
+  G.MH.GROUPS.forEach(g=>cats.push(['Tiểu học – '+g[0],Object.keys(g[1]).map(k=>it('minhhoa',k,g[1][k][0]))]));
+  return cats;
+}
+let tvCatI=0;
+function tvLibRender(){
+  const cats=tvCats(),L=$('#tvCats'),Gd=$('#tvGrid');L.textContent='';Gd.textContent='';
+  cats.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.textContent=c[0]+' ('+c[1].length+')';b.setAttribute('aria-pressed',i===tvCatI);b.onclick=()=>{tvCatI=i;tvLibRender()};L.append(b)});
+  for(const t of cats[tvCatI][1]){
+    const b=document.createElement('button');b.type='button';b.className='tvcard';b.title=t.name;const cvp=document.createElement('canvas');cvp.width=180;cvp.height=120;
+    const sp=document.createElement('span');sp.textContent=t.name;b.append(cvp,sp);Gd.append(b);
+    b.onclick=()=>{tvLib.close();if(t.type==='chem'){openChem();return}const d=tvNew(t.type,t.kind);
+      if(/graph|region|bbt|sign/.test(t.type))openTvo(d);else{tvPlace(d);toast('Nhấp đúp vào hình (hoặc nút Sửa) để đổi số liệu, nội dung.')}};
+    if(t.type==='chem'){const c=cvp.getContext('2d');c.font='bold 34px serif';c.textAlign='center';c.fillStyle=theme.ink;c.fillText('⚗',90,70);continue}
+    let d;try{d=tvNew(t.type,t.kind)}catch(_){continue}
+    const draw=()=>{const e=tvImg(d);if(!e.ready){if(!e.err)setTimeout(draw,120);return}const c=cvp.getContext('2d');c.clearRect(0,0,180,120);const k=Math.min(170/e.w,110/e.h);c.drawImage(e.img,(180-e.w*k)/2,(120-e.h*k)/2,e.w*k,e.h*k)};draw();
+  }
+}
+function openTvLib(cat){closePops();if(cat!=null)tvCatI=cat;tvLibRender();tvLib.showModal()}
+$('#tvLibClose').onclick=()=>tvLib.close();
+/* nút ƒ và nút bảng biến thiên: mở bộ vẽ ToanViet; thiếu thư viện (bản rất cũ) thì về hộp thoại cũ */
+function openGraphTV(){if(tvxOn)openTvo(tvNew('graph'));else openGraph()}
+function openBBTTV(){if(tvxOn)openTvo(tvNew('bbt'));else openBBT()}
 /* ---------- khối tròn xoay từ đồ thị ----------
    o = {type:'rev', expr, axis:'x'|'y', a, b, angle (độ), yaw, pitch, color, bw, bh, x, y, w, h}.
    Quay quanh Ox: điểm (x, f(x)·cosθ, f(x)·sinθ); quanh Oy: (x·cosθ, x·sinθ, f(x)), trục quay luôn vẽ thẳng đứng hoặc nằm ngang như SGK. */
@@ -4151,6 +4449,7 @@ async function waitAssets(list){
     for(const o of list){
       if(o.type==='formula'&&window.mjReady&&!getFormula(texOf(o),res(o.color)).ready)ok=false;
       if(o.type==='image'&&assets[o.a]&&!getImg(o.a).ready)ok=false;
+      if(o.type==='tvo'){const e=tvImg(tvD(o));if(!e.ready&&!e.err)ok=false}
       if(o.type==='tvfig'){const t=tvGet(o);if(!t.ready)ok=false;if(window.mjReady)for(const l of t.res.labels||[])if(l.tex!==undefined&&!getFormula(String(l.tex),l.color||theme.ink).ready)ok=false}
     }
     if(ok)return;await new Promise(r=>setTimeout(r,100));
@@ -4459,8 +4758,8 @@ mkBtn(G3,svg('<ellipse cx="12" cy="6" rx="7" ry="2.4"/><path d="M5 6c0 7 3 12 7 
 if(tvOn)mkBtn(G3,pa('M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5'),'Hình dựng sẵn: hình không gian, hình phẳng (K)',()=>openTv());
 const calcB=mkBtn(G3,svg('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h1M11.5 12h1M15 12h1M8 15.5h1M11.5 15.5h1M15 15.5h1M8 19h1M11.5 19h1M15 19h1"/>'),'Máy tính khoa học: tính toán, giải phương trình, bảng giá trị, tích phân (C)',toggleCalc);
 mkBtn(G3,'∑','Chèn công thức toán (F)',()=>openFormula());
-mkBtn(G3,'<i>ƒ</i>','Đồ thị hàm số, miền nghiệm bất phương trình (G)',()=>openGraph());
-mkBtn(G3,pa('M3 5h18v14H3zM3 10h18M8 5v14M11 17l7-4M18 13l-3.2-.4M18 13l-1.6 2.8'),'Bảng biến thiên, bảng xét dấu (B)',()=>openBBT());
+mkBtn(G3,'<i>ƒ</i>','Đồ thị hàm số kiểu SGK (G); miền nghiệm, trục số trong nút Chèn thêm',()=>openGraphTV());
+mkBtn(G3,pa('M3 5h18v14H3zM3 10h18M8 5v14M11 17l7-4M18 13l-3.2-.4M18 13l-1.6 2.8'),'Bảng biến thiên, bảng xét dấu kiểu SGK, tự lập từ hàm số (B)',()=>openBBTTV());
 const moreB=popBtn(G3,pa('M4 20V10M10 20V4M16 20v-7M22 20H2M17 4c2 0 3 1.5 3 3'),'Chèn thêm: bảng, biểu đồ, hoá học, con dấu, ghi chú, chú thích, hình dụng cụ, gọi tên, đồng hồ','popMore');
 
 const SHP=[['rect','Hình chữ nhật (R)',pa('M4 6h16v12H4z')],['ellipse','Elip, đường tròn (O)',svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>')],['tri','Tam giác (I)',pa('M12 4l9 16H3z')],['arrow','Mũi tên (A)',pa('M5 19L19 5M10 5h9v9')]];
@@ -4482,7 +4781,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.5.0';
+const APPVER='2.6.0';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
@@ -4725,10 +5024,10 @@ const SB=$('#selBar');
 function delSel(){const d=[...sel].filter(o=>!o.lock);sel.clear();if(!d.length){requestDraw();return}objs=objs.filter(o=>!d.includes(o));commit();toast(d.length>1?'Đã xoá '+d.length+' đối tượng.':'Đã xoá.',UNDO_ACT)}
 function dupSel(){if(!sel.size)return;const n=[...sel].map(o=>{const c=clone(o);moveObj(c,20,20);return c});objs.push(...n);sel=new Set(n);commit()}
 function editObj(o){
-  if(o.type==='table')openTable(o);else if(o.type==='note')openNote(o);else if(o.type==='callout')startCallText(o);else if(o.type==='chart')openChart(o);else if(o.type==='formula'&&o.chem)openChem(o);else if(o.type==='geo')openGeo(o);else if(o.type==='tvfig')openTv(o);else if(o.type==='rev')openRev(o);else if(o.type==='graph')openGraph(o);
+  if(o.type==='tvo')openTvo(o);else if(o.type==='table')openTable(o);else if(o.type==='note')openNote(o);else if(o.type==='callout')startCallText(o);else if(o.type==='chart')openChart(o);else if(o.type==='formula'&&o.chem)openChem(o);else if(o.type==='geo')openGeo(o);else if(o.type==='tvfig')openTv(o);else if(o.type==='rev')openRev(o);else if(o.type==='graph')openGraph(o);
   else if(o.type==='bbt')openBBT(o);else if(o.type==='formula')openFormula(o);else if(o.type==='text'){sel.clear();startText(null,o)}
 }
-const EDITABLE=['table','note','callout','chart','geo','tvfig','rev','graph','bbt','formula','text'];
+const EDITABLE=['tvo','table','note','callout','chart','geo','tvfig','rev','graph','bbt','formula','text'];
 function orderSel(top){if(!sel.size)return;const keep=objs.filter(o=>!sel.has(o)),mv=objs.filter(o=>sel.has(o));objs=top?keep.concat(mv):mv.concat(keep);commit()}
 const sbBtn={
   del:mkBtn(SB,pa('M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6'),'Xoá đối tượng đang chọn (Delete)',delSel,'sbdel'),
@@ -4806,12 +5105,14 @@ setBarPos(barPos);
 /* ---------- công thức hoá học (MathJax mhchem) ----------
    Gõ như viết tay: H2SO4, Fe^3+, SO4^2-, 2H2 + O2 -> 2H2O; điều kiện trên mũi tên: ->[t°]; khí bay lên ^, kết tủa v.
    Lưu là công thức thường với tex = \ce{...} và chem = chữ đã gõ (để sửa lại). */
-const CHEM_KEYS=[['→','->'],['⇌','<=>'],['t°','->[t^o]'],['xt, t°','->[xt, t^o]'],['↑',' ^'],['↓',' v'],['(k)','(k)'],['(l)','(l)'],['(r)','(r)'],['(dd)','(dd)'],['⁺','^+'],['²⁻','^2-'],['·','*']];
+const CHEM_KEYS=[['→','->'],['⇌','<=>'],['t°','->[t°]'],['xt, t°','->[xt, t°]'],['↑','↑'],['↓','↓'],['(k)','(k)'],['(l)','(l)'],['(r)','(r)'],['(dd)','(dd)'],['⁺','^+'],['²⁻','^2-'],['·','.']];
 const chemDlg=$('#chemDlg'),chemIn=$('#chemIn');let chemEdit=null;
-const chemTex=s=>'\\ce{'+s.replace(/→/g,'->').replace(/⇌/g,'<=>').replace(/↑/g,' ^').replace(/↓/g,' v').replace(/t°/g,'t^o').replace(/[{}\\]/g,'')+'}';
+/* phương trình (có mũi tên): viết theo ToanViet Studio, đúng cách trình bày SGK; công thức một chất: MathJax mhchem */
+const chemTex=s=>{if(TVX.HH&&/->|→|<=>|⇌|<->|=/.test(s)){try{return TVX.HH.latex(s)}catch(_){}}
+  return'\\ce{'+s.replace(/→/g,'->').replace(/⇌/g,'<=>').replace(/↑/g,' ^').replace(/↓/g,' v').replace(/t°/g,'t^o').replace(/[{}\\]/g,'')+'}'};
 for(const[l,v]of CHEM_KEYS){const b=document.createElement('button');b.type='button';b.textContent=l;b.title=v;
   b.onclick=()=>{const s=chemIn.selectionStart,e=chemIn.selectionEnd;chemIn.setRangeText((v.startsWith('-')||v.startsWith('<')?' '+v+' ':v),s,e,'end');chemIn.focus();chemPreview()};$('#chemKeys').append(b)}
-const CHEM_PRE=['2H2 + O2 ->[t^o] 2H2O','Fe + 2HCl -> FeCl2 + H2 ^','BaCl2 + Na2SO4 -> BaSO4 v + 2NaCl','N2 + 3H2 <=>[xt, t^o, p] 2NH3','CH3COOH + C2H5OH <=>[H2SO4 đặc, t^o] CH3COOC2H5 + H2O','Cu^2+ + 2OH- -> Cu(OH)2 v'];
+const CHEM_PRE=['2H2 + O2 ->[t°] 2H2O','Fe + 2HCl -> FeCl2 + H2↑','BaCl2 + Na2SO4 -> BaSO4↓ + 2NaCl','N2 + 3H2 <=>[xt, t°, p] 2NH3','2KMnO4 ->[t°] K2MnO4 + MnO2 + O2↑','Fe^3+ + 3OH^- -> Fe(OH)3↓','Al + O2 -> Al2O3'];
 for(const p of CHEM_PRE){const b=document.createElement('button');b.type='button';b.textContent=p;b.onclick=()=>{chemIn.value=p;chemPreview()};$('#chemChips').append(b)}
 let chemT=0;
 function chemPreview(){
@@ -4820,7 +5121,14 @@ function chemPreview(){
   const s=chemIn.value.trim();if(!s)return;if(!window.mjReady){chemT=setTimeout(chemPreview,200);return}
   const f=getFormula(chemTex(s),theme.ink);if(!f.ready){chemT=setTimeout(chemPreview,80);return}
   const k=Math.min((r.width-20)/f.w,(r.height-16)/f.h,14);c.drawImage(f.img,(r.width-f.w*k)/2,(r.height-f.h*k)/2,f.w*k,f.h*k);
+  chemCheck(s);
 }
+/* kiểm tra cân bằng (đếm nguyên tố, điện tích hai vế) và tự cân bằng hệ số nhỏ nhất: bộ hoá học của ToanViet */
+function chemCheck(s){const info=$('#chemInfo'),b=$('#chemBal');info.textContent='';b.hidden=true;if(!TVX.HH||!/->|→|<=>|⇌|<->|=/.test(s))return;
+  try{const k=TVX.HH.kiemTra(s);if(k.canBang){info.textContent='✓ Phương trình đã cân bằng.';info.className='hint ok'}
+    else{info.textContent='Chưa cân bằng: '+k.lech.concat(k.thieu||[]).join('; ');info.className='hint bad';b.hidden=false}}catch(e){info.textContent=e.message;info.className='hint bad'}}
+$('#chemBal').onclick=()=>{try{const s=chemIn.value.trim(),h=TVX.HH.canBang(s);if(h){chemIn.value=TVX.HH.vietLai(s,h);chemPreview()}else toast('Không tự cân bằng được phương trình này.')}catch(e){toast(e.message)}};
+
 function openChem(o){chemEdit=o||null;chemIn.value=o?o.chem:'';$('#chemOk').textContent=o?'Cập nhật':'Chèn vào trang';chemDlg.showModal();chemIn.focus();requestAnimationFrame(chemPreview)}
 chemIn.addEventListener('input',chemPreview);$('#chemCancel').onclick=()=>chemDlg.close();
 $('#chemForm').addEventListener('submit',e=>{
@@ -4994,6 +5302,10 @@ Object.assign(sbBtn,{
   tbg:mkBtn(SB,'<span style="background:#fff59d;color:#222;padding:0 5px;border-radius:4px;font:700 17px sans-serif">A</span>','Tô nền cho chữ (bấm nhiều lần để đổi màu)',()=>styleSel('bg'))});
 function syncSelExtra(){const L=[...sel],one=L.length===1&&L[0],img=one&&one.type==='image'&&!one.lock,txt=L.length&&L.every(o=>o.type==='text'||o.type==='note'||o.type==='callout');
   sbBtn.rot.hidden=!L.some(o=>o.type==='image'&&!o.lock);sbBtn.crop.hidden=!img;sbBtn.bold.hidden=sbBtn.ital.hidden=!txt;sbBtn.tbg.hidden=!(txt&&L.some(o=>o.type==='text'))}
+/* thư viện hình ToanViet theo từng nhóm */
+$('#mxLib').onclick=()=>openTvLib();$('#mxNumline').onclick=()=>openTvLib(1);$('#mxSolid').onclick=()=>openTvLib(2);$('#mxStat').onclick=()=>openTvLib(3);
+$('#mxLi').onclick=()=>openTvLib(4);$('#mxHoaSinh').onclick=()=>openTvLib(5);$('#mxTieuHoc').onclick=()=>openTvLib(7);
+$('#mxRegion').onclick=()=>{closePops();openTvo(tvNew('region'))};
 /* ---------- bàn phím ---------- */
 const KEYS={q:'laser',v:'select',h:'pan',p:'pen',m:'hl',e:'eraser',l:'line',a:'arrow',r:'rect',o:'ellipse',i:'tri',t:'text'};
 addEventListener('keydown',e=>{
@@ -5018,8 +5330,8 @@ addEventListener('keydown',e=>{
   if(e.key==='PageDown'){e.preventDefault();return gotoPage(pi+1)}
   if(e.key==='PageUp'){e.preventDefault();return gotoPage(pi-1)}
   if(k==='f')return openFormula();
-  if(k==='g')return openGraph();
-  if(k==='b')return openBBT();
+  if(k==='g')return openGraphTV();
+  if(k==='b')return openBBTTV();
   if(k==='k'&&tvOn)return openTv();
   if(k==='j')return openRev();
   if(k==='n')return openGeo();
