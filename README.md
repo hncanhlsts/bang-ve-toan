@@ -24,6 +24,6 @@ Bảng vẽ dạy học môn Toán chạy ngay trên trình duyệt.
 - Máy tính khoa học bố cục fx-580VN X (MENU, SETUP, CALC, SOLVE, số phức, ma trận, vectơ, thống kê, phân phối…)
 - Trình chiếu: bút laser, đèn rọi, che màn, đồng hồ; ghi hình bài giảng; mở PDF làm trang nền; xuất PDF, PNG
 
-Phiên bản 2.7.1.
+Phiên bản 2.8.0.
 
 Tác giả: Hoàng Ngọc Cảnh, giáo viên trường THCS - THPT Đinh Thiện Lý (canhld@gmail.com).

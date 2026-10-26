@@ -166,6 +166,32 @@ dialog.wide{width:min(980px,calc(100% - 32px))}
 #keyShow{position:absolute;left:24px;bottom:24px;z-index:7;background:rgba(29,34,48,.9);color:#fff;font:700 28px var(--ui);padding:10px 22px;border-radius:12px;pointer-events:none}
 #popTin{min-width:380px}#tinList .item{font-size:14px}
 @media (max-width:760px){.shwrap{grid-template-columns:1fr}}
+/* thanh công cụ gọn một hàng; cỡ nút: chạm 48 px, chuột 40 px, hoặc theo cài đặt */
+:root{--tbs:48px}
+@media (hover:hover) and (pointer:fine){:root{--tbs:40px}}
+#bar{flex-wrap:wrap;row-gap:0;min-height:calc(var(--tbs) + 10px);padding-inline:10px}
+#tl{order:1}#tr{order:2;flex:0 1 auto}#tc{order:3;flex:1 1 140px;justify-content:flex-end}
+#bar .tb{width:var(--tbs);height:var(--tbs)}#bar .tb svg{width:calc(var(--tbs)*.56);height:calc(var(--tbs)*.56)}
+#bar .tb .d{width:calc(var(--tbs)*.46)!important;height:calc(var(--tbs)*.46)!important}
+#bar .tgrp{padding:0 4px}
+.xhide{display:none!important}
+#bar .tb.wide{width:auto;padding:0 12px;gap:4px;font:600 15px var(--ui)}#bar .tb.wide .plus{font-size:20px;line-height:1}
+.szdot{display:block;width:var(--d,6px);height:var(--d,6px);border-radius:50%;background:var(--dc,var(--ink))}
+#popSize{min-width:260px}#popSize .tsize{display:flex;align-items:center;gap:8px;width:100%}#popSize .tsize input{flex:1;width:auto}
+#sizeQuick .btn{display:inline-flex;align-items:center;gap:6px}.szq{display:inline-block;width:var(--q);height:var(--q);border-radius:50%;background:var(--ink)}
+.swatches{display:grid;grid-template-columns:repeat(5,44px);gap:4px;margin-bottom:6px}.swatches .col{width:44px;height:44px;border:0;background:transparent;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.swatches .col .d{width:26px;height:26px;border-radius:50%;box-shadow:0 0 0 1px var(--line)}.swatches .col[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--accent)}
+#popIns{width:min(820px,calc(100% - 16px));max-height:min(74vh,640px);overflow:auto}
+#popIns section+section{margin-top:6px}#popIns h3{margin:4px 0}
+.insgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px}
+.instile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-height:72px;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);cursor:pointer;font:12.5px var(--ui);line-height:1.2;text-align:center}
+.instile:hover{border-color:var(--accent);background:var(--hover)}.instile .ic{font-size:22px;line-height:1}
+#newP{font-size:17px!important}
+#tl .recb:not(.rec){display:none}
+/* màn hình vừa: ẩn ô tên bài để số trang, thu phóng không bị cắt */
+@media (max-width:1500px){#title{display:none}#tc .dot{display:none}}
+/* màn hình hẹp (máy tính bảng): hàng 1 là nút chung + trang, hàng 2 là công cụ — 2 hàng thay vì 3 */
+@media (min-width:641px) and (max-width:1100px){#tc{order:2}#tr{order:3;flex:1 1 100%}}
 /* loại nét bút, thanh thao tác */
 .penTypes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .penT{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:4px;cursor:pointer;color:var(--ink);font:12px var(--ui)}
@@ -381,10 +407,6 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
 #gPrev,#bPrev{width:100%;height:220px;border:1px solid var(--line);border-radius:10px;display:block}
 .dlg label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:13.5px}
 #exImg{max-width:100%;max-height:50vh;border:1px solid var(--line);border-radius:8px;align-self:center}
-@media (max-width:1960px){
-  #bar{flex-wrap:wrap;row-gap:0}
-  #tr{order:3;width:100%;border-top:1px solid var(--line)}
-}
 /* màn hình vừa (laptop 1366–1920): nhóm nút xuống dòng thay vì bị khuất ở mép phải */
 @media (min-width:641px) and (max-width:1960px){#tr{flex-wrap:wrap;overflow-x:visible}}
 @media (max-width:520px){
@@ -556,6 +578,7 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
     <h3>Khổ giấy</h3>
     <div class="seg" id="orSeg"><button type="button" data-o="doc">Dọc (A4)</button><button type="button" data-o="wide">Ngang (vừa màn hình)</button></div>
     <h3>Thanh công cụ</h3>
+    <div class="seg" id="tbSeg"><button type="button" data-v="auto">Cỡ nút tự động</button><button type="button" data-v="s">Nhỏ</button><button type="button" data-v="m">Vừa</button><button type="button" data-v="l">To</button></div>
     <div class="seg" id="barSeg"><button type="button" data-b="top">Ở trên</button><button type="button" data-b="bottom">Ở dưới (dễ với tới)</button></div>
     <h3>Màn hình cảm ứng</h3>
     <label><input type="checkbox" id="penOnlyChk"> Chỉ viết bằng bút cảm ứng (ngón tay, lòng bàn tay chạm vào chỉ kéo trang)</label>
@@ -4938,7 +4961,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.7.1';
+const APPVER='2.8.0';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
@@ -5001,6 +5024,7 @@ function syncUI(){
   for(const b of $('#orSeg').children)b.setAttribute('aria-pressed',b.dataset.o===orient);
   try{syncPres()}catch(_){}
   try{syncPens()}catch(_){}
+  try{syncCompact()}catch(_){}
 }
 
 /* ---------- trình chiếu: toàn màn hình, bút laser, đèn rọi, che màn, đồng hồ đếm ngược ----------
@@ -5471,8 +5495,8 @@ $('#clipClose').onclick=()=>clipDlg.close();
 
 /* nút Chèn thêm */
 $('#mxTable').onclick=()=>{closePops();openTable()};$('#mxNote').onclick=()=>{closePops();openNote()};
-$('#mxStamp').onclick=()=>{for(const b of stGrid.children)b._draw();togglePop('popStamp',moreB)};
-$('#mxClip').onclick=openClips;$('#mxPick').onclick=openPicker;$('#mxTimer').onclick=()=>togglePop('popTimer',moreB);
+$('#mxStamp').onclick=()=>{for(const b of stGrid.children)b._draw();togglePop('popStamp',insAnchor())};
+$('#mxClip').onclick=openClips;$('#mxPick').onclick=openPicker;$('#mxTimer').onclick=()=>togglePop('popTimer',insAnchor());
 $('#mxCallout').onclick=()=>{closePops();setTool('callout');toast('Kéo từ chi tiết cần chỉ tới chỗ muốn đặt chữ, rồi gõ nhãn.')};
 /* thêm nút vào thanh thao tác khi chọn */
 Object.assign(sbBtn,{
@@ -6304,6 +6328,58 @@ const TIN=[['💻','Mã nguồn (Python, C++, Pascal, SQL, HTML…)',()=>openCod
   ['🗄','Cơ sở dữ liệu: chạy SQL, sơ đồ quan hệ',()=>openSql()],['🧩','Khối lệnh Scratch',()=>openScratch()],['▶','Chạy dự án Scratch (bản web)',()=>openScratchRun()],['🖧','Mạng máy tính: thiết bị, mô hình mạng',()=>openNet()]];
 for(const[ic,l,f]of TIN){const b=document.createElement('button');b.type='button';b.className='item';b.textContent=ic+'  '+l;b.onclick=()=>{closePops();f()};$('#tinList').append(b)}
 for(const b of $('#clipNet').querySelectorAll('[data-t]'))b.onclick=()=>{clipDlg.close();netTopo(b.dataset.t)};
+/* ---------- thanh công cụ gọn: một hàng ----------
+   Trước: 39 nút trên 2 – 4 hàng (16 – 26% chiều cao màn hình). Nay: ☰ ↶ ↷ trình chiếu, cài đặt | công cụ | 4 màu nhanh, 🎨 đủ màu,
+   chấm độ dày, nét đứt | ∑ ƒ ＋ Chèn | tên bài, trang. Lưu, mở, dán, thêm trang, ghi hình vào trình đơn ☰ (nút ghi hình hiện lại khi đang ghi).
+   Cỡ nút tự theo thiết bị: chạm (bảng tương tác) 48 px, chuột 40 px; đổi được trong Cài đặt trang giấy. Chức năng, phím tắt giữ nguyên. */
+const hideB=(b,cls)=>{if(b)b.classList.add(cls||'xhide');return b};
+/* hàng trên: lưu, dán, thêm trang → trình đơn */
+for(const b of TL.querySelectorAll('.tb'))if(/^(Lưu bài vẽ|Dán|Thêm trang mới)/.test(b.title))hideB(b);
+{const menu=$('#popMenu'),first=$('#mImg'),mk=(t,f)=>{const b=document.createElement('button');b.type='button';b.className='item';b.textContent=t;b.onclick=()=>{closePops();f()};menu.insertBefore(b,first);return b};
+  mk('Thêm trang mới',newPage);mk('Dán (Ctrl+V)',()=>{if(!pasteObjs())toast('Nhấn Ctrl+V để dán ảnh hoặc chữ đã sao chép từ máy bạn.')});mk('Ghi hình bài giảng (bảng và giọng nói)',toggleRec);
+  $('#mOpenDoc').hidden=$('#mSaveDoc').hidden=false;$('#mOpenDoc').onclick=()=>{closePops();openDoc()};$('#mSaveDoc').onclick=()=>{closePops();saveDoc()};}
+/* thêm trang ngay cạnh số trang */
+{const b=document.createElement('button');b.type='button';b.id='newP';b.textContent='＋';b.title='Thêm trang mới';b.setAttribute('aria-label','Thêm trang mới');b.onclick=newPage;$('#nextP').after(b)}
+/* màu: 4 màu nhanh trên thanh, đủ màu trong bảng 🎨 */
+colBtns.forEach((b,i)=>{if(i>=4)hideB(b)});
+penB.title=penB.ariaLabel='Màu khác, màu tự chọn, loại nét bút';
+{const g=document.createElement('div');g.className='swatches';for(const c of COLORS){const b=document.createElement('button');b.type='button';b.className='col';b.dataset.c=c;b.title=c==='ink'?'Màu mực':'Màu '+c;
+  b.innerHTML='<span class="d" style="background:'+(c==='ink'?'var(--ink)':c)+'"></span>';b.onclick=()=>setColor(c);g.append(b)}
+  const pp=$('#popPen');pp.insertBefore(g,pp.querySelector('label'));}
+/* độ dày: chấm tròn trên thanh, thanh trượt và 4 cỡ nhanh trong bảng */
+const sizePop=document.createElement('div');sizePop.className='pop';sizePop.id='popSize';sizePop.hidden=true;sizePop.innerHTML='<h3>Độ dày nét, cỡ chữ</h3><div class="row" id="sizeQuick"></div>';app.append(sizePop);
+const sizeB=popBtn(G2,'<span class="szdot"></span>','Độ dày nét bút, đường thẳng, hình; cỡ chữ','popSize');G2.insertBefore(sizeB,sizeWrap);sizePop.insertBefore(sizeWrap,$('#sizeQuick'));
+for(const v of[2,4,8,14]){const b=document.createElement('button');b.type='button';b.className='btn';b.innerHTML='<span class="szq" style="--q:'+Math.min(22,v*1.4)+'px"></span>'+v;b.title='Độ dày '+v;
+  b.onclick=()=>{const s=$('#size');s.value=v;s.dispatchEvent(new Event('input'));s.dispatchEvent(new Event('change'))};$('#sizeQuick').append(b)}
+/* chèn: giữ ∑ và ƒ, mọi thứ khác vào bảng ＋ Chèn chia nhóm */
+for(const b of G3.querySelectorAll('.tb'))if(!/^(Chèn công thức|Đồ thị hàm số)/.test(b.title))hideB(b);
+const insPop=document.createElement('div');insPop.className='pop';insPop.id='popIns';insPop.hidden=true;app.append(insPop);
+const insB=popBtn(G3,'<b class="plus">＋</b><span class="tlab">Chèn</span>','Chèn: công thức, đồ thị, hình, bảng, biểu đồ, hình theo môn, Tin học…','popIns','wide');
+const insAnchor=()=>insB.offsetParent?insB:moreB;
+const INS=[
+  ['Toán',[['∑','Công thức',()=>openFormula()],['ƒ','Đồ thị hàm số',()=>openGraphTV()],['▦','Bảng biến thiên',()=>openBBTTV()],['±','Bảng xét dấu',()=>openTvo(tvNew('sign'))],
+    ['◩','Miền nghiệm',()=>openTvo(tvNew('region'))],['↔','Trục số, biểu đồ Ven',()=>openTvLib(1)],...(tvOn?[['⬡','Hình phẳng, không gian dựng sẵn',()=>openTv()]]:[]),['🧊','Khối hình kiểu SGK',()=>openTvLib(2)],
+    ['△','Dựng hình động',()=>openGeo()],['◎','Khối tròn xoay',()=>openRev()],['📐','Thước, thước đo góc, compa',()=>togglePop('popInst',insAnchor())],['🧮','Máy tính khoa học',()=>toggleCalc()],['📊','Thống kê – xác suất',()=>openTvLib(3)]]],
+  ['Các môn',[['📚','Thư viện hình theo môn',()=>openTvLib()],['🔌','Vật lí',()=>openTvLib(4)],['🧪','Hoá học',()=>openTvLib(5)],['🧬','Sinh học',()=>openTvLib(6)],['⚗','Phương trình hoá học',()=>openChem()],
+    ['📈','Biểu đồ từ số liệu',()=>openChart()],['⚗︎','Dụng cụ thí nghiệm',()=>openClips()],['🔢','Tiểu học',()=>openTvLib(7)]]],
+  ['Lớp học',[['🖼','Ảnh từ máy',()=>$('#imgFile').click()],['📄','PDF làm trang nền',()=>$('#pdfFile').click()],['▤','Bảng',()=>openTable()],['↖','Mũi tên chú thích',()=>$('#mxCallout').click()],['🗒','Ghi chú dán',()=>openNote()],
+    ['✅','Con dấu chấm bài',()=>{for(const b of stGrid.children)b._draw();togglePop('popStamp',insAnchor())}],['🎲','Gọi tên ngẫu nhiên',()=>openPicker()],['⏱','Đồng hồ đếm ngược',()=>togglePop('popTimer',insAnchor())]]],
+  ['Tin học',TIN.map(([ic,l,f])=>[ic,l.replace(/\s*\(.*\)$/,''),f])]];
+for(const[h,items]of INS){const sec=document.createElement('section'),hh=document.createElement('h3');hh.textContent=h;const g=document.createElement('div');g.className='insgrid';
+  for(const[ic,l,f]of items){const b=document.createElement('button');b.type='button';b.className='instile';b.innerHTML='<span class="ic"></span><span class="lb"></span>';b.firstChild.textContent=ic;b.lastChild.textContent=l;b.title=l;
+    b.onclick=()=>{closePops();f()};g.append(b)}sec.append(hh,g);insPop.append(sec)}
+/* đồng bộ: nút 🎨 sáng khi đang dùng màu không có trong 4 màu nhanh; chấm độ dày đúng cỡ đang dùng */
+function syncCompact(){if(typeof sizeB==='undefined')return;penB.setAttribute('aria-pressed',!COLORS.slice(0,4).includes(color));
+  const d=sizeB.querySelector('.szdot');d.style.setProperty('--d',clamp((tool==='hl'?size*4:size)*1.1,3,22)+'px');d.style.setProperty('--dc',color==='ink'?'var(--ink)':color);
+  for(const b of $('#popPen .swatches').children)b.setAttribute('aria-pressed',b.dataset.c===color)}
+/* cỡ nút: tự động (chạm 48, chuột 40) hoặc Nhỏ 36 / Vừa 44 / To 52 */
+const TBS={auto:'',s:'36px',m:'44px',l:'52px'};let tbSize='auto';try{tbSize=localStorage.getItem('bvt-tbs')||'auto';if(!(tbSize in TBS))tbSize='auto'}catch(_){}
+function setTbSize(v){tbSize=v in TBS?v:'auto';if(TBS[tbSize])document.documentElement.style.setProperty('--tbs',TBS[tbSize]);else document.documentElement.style.removeProperty('--tbs');
+  for(const b of $('#tbSeg').children)b.setAttribute('aria-pressed',b.dataset.v===tbSize);try{localStorage.setItem('bvt-tbs',tbSize)}catch(_){}requestAnimationFrame(()=>{resize()})}
+for(const b of $('#tbSeg').children)b.onclick=()=>setTbSize(b.dataset.v);
+setTbSize(tbSize);syncCompact();
+/* đổi cỡ cửa sổ khi đang mở bảng bật ra: đóng lại (vị trí cũ không còn đúng, dễ tràn ra ngoài màn hình) */
+addEventListener('resize',closePops);
 /* ---------- bàn phím ---------- */
 const KEYS={q:'laser',v:'select',h:'pan',p:'pen',m:'hl',e:'eraser',l:'line',a:'arrow',r:'rect',o:'ellipse',i:'tri',t:'text'};
 addEventListener('keydown',e=>{
@@ -6344,7 +6420,7 @@ addEventListener('keyup',e=>{if(e.key===' '){spaceDown=false;setCursor()}});
 /* ---------- hướng dẫn lần đầu, bảng phím tắt ----------
    Lần đầu mở ứng dụng: 5 bước giới thiệu ngắn (có thể bỏ qua). Phím ? (hoặc trình đơn) mở bảng phím tắt. */
 const TOUR=[
-  ['✍️','Viết và vẽ như trên bảng','Chọn bút, bút dạ quang, đường thẳng, hình hoặc chữ ở thanh công cụ bên phải; màu và độ dày nét nằm ngay cạnh. Bút cảm ứng nhận lực nhấn. Hai ngón tay để phóng to, thu nhỏ. Bấm lại nút Bút để chọn loại nét (bút máy, thư pháp, bút lông, neon…). Công cụ Chọn: chạm vào đối tượng để hiện nút Xoá, Nhân đôi, Sửa.'],
+  ['✍️','Viết và vẽ như trên bảng','Thanh công cụ một hàng: bút, bút dạ quang, đường thẳng, hình, chữ, tẩy; 4 màu nhanh, nút 🎨 có đủ màu và loại nét, chấm tròn là độ dày nét. Nút ＋ Chèn mở mọi thứ chèn được (công thức, đồ thị, hình theo môn, bảng, Tin học…); lưu, mở, dán, ghi hình ở trình đơn ☰. Bút cảm ứng nhận lực nhấn. Hai ngón tay để phóng to, thu nhỏ. Bấm lại nút Bút để chọn loại nét (bút máy, thư pháp, bút lông, neon…). Công cụ Chọn: chạm vào đối tượng để hiện nút Xoá, Nhân đôi, Sửa.'],
   ['∑','Công thức, đồ thị, bảng biến thiên','Nút ∑ chèn công thức bằng bộ gõ toán (gõ sqrt ra √, / ra phân số). Nút ƒ vẽ đồ thị và miền nghiệm; viết y = ax² + bx + c để có thanh trượt tham số. Bên cạnh là bảng biến thiên và máy tính khoa học kiểu fx-580VN X.'],
   ['📐','Hình học','Thước thẳng, thước đo góc, compa; hình phẳng và hình không gian dựng sẵn (trải hình, khối tròn xoay); Dựng hình động: dựng điểm, đường, đường tròn, giao điểm… rồi kéo điểm cho cả hình thay đổi theo.'],
   ['🎬','Dạy trên lớp và dạy online','F5 vào trình chiếu: nút to, bút laser (Q), đèn rọi, che màn, đồng hồ đếm ngược. Nút ghi hình ghi lại bảng kèm giọng nói. Trình đơn ☰ mở được file PDF làm trang nền để chữa đề, chữa bài.'],
