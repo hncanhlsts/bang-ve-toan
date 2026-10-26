@@ -198,6 +198,10 @@ dialog.wide{width:min(980px,calc(100% - 32px))}
 #popMenu .msub{display:flex;flex-direction:column;padding-left:30px;margin-bottom:4px}#popMenu .msub[hidden]{display:none}
 .pcpad{height:220px;border:2px dashed var(--accent);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);font:600 18px var(--ui);touch-action:none;user-select:none;background:var(--paper)}
 .pcpad.gum{border-color:#e53935}.pcstep{font:600 16px var(--ui);margin:4px 0}
+.kpal{display:flex;flex-wrap:wrap;gap:4px;max-height:200px;overflow:auto}.kpal h4{flex:1 1 100%;margin:6px 0 0;font:700 12px var(--ui)}
+.kblk{border:0;border-radius:6px;padding:5px 8px;background:var(--kc);color:#fff;font:600 12px var(--ui);cursor:pointer;text-align:left}
+#rbPrev{width:100%;height:52vh;border:1px solid var(--line);border-radius:10px;display:block}
+#sbKit{margin-right:8px}
 /* loại nét bút, thanh thao tác */
 .penTypes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .penT{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:4px;cursor:pointer;color:var(--ink);font:12px var(--ui)}
@@ -922,11 +926,26 @@ print(s)</textarea><button type="button" class="btn" id="flGen">Sinh sơ đồ</
   </div></dialog>
 
   <dialog id="sbDlg" class="wide"><form class="dlg" method="dialog" id="sbForm" novalidate>
-    <div class="fhead"><h2>Khối lệnh Scratch</h2><select id="sbLang" aria-label="Ngôn ngữ khối lệnh"><option value="en">English (chuẩn Scratch)</option><option value="vi">Tiếng Việt</option></select></div>
+    <div class="fhead"><h2>Khối lệnh</h2><select id="sbKit" aria-label="Kiểu khối"><option value="scratch">Scratch</option><option value="spike">LEGO SPIKE Prime</option><option value="vex">VEXcode V5</option></select><select id="sbLang" aria-label="Ngôn ngữ khối lệnh"><option value="en">English (chuẩn Scratch)</option><option value="vi">Tiếng Việt</option></select></div>
     <div class="tvwrap"><div class="tvprops"><label class="tvf"><span>Viết khối lệnh, mỗi dòng một khối; thụt lề cho khối bên trong vòng lặp, rẽ nhánh</span><textarea id="sbSrc" rows="14" class="mono" spellcheck="false"></textarea></label>
-      <p class="hint">Giá trị số trong ( ), chữ trong [ ], chọn trong danh sách viết [tên v]. Cú pháp theo scratchblocks (scratchblocks.github.io).</p><div class="err" id="sbErr"></div></div>
+      <p class="hint">Giá trị số trong ( ), chữ trong [ ], chọn trong danh sách viết [tên v]. Cú pháp theo scratchblocks (scratchblocks.github.io).</p><div class="err" id="sbErr"></div>
+      <div id="sbPalWrap" hidden><div class="chips" id="sbKitSamples"></div><p class="hint">Bấm khối để chèn vào chương trình (màu nhóm tự gắn):</p><div id="sbPal" class="kpal"></div></div>
+      <div class="row"><button type="button" class="btn" id="sbPyBtn" hidden>Python tương ứng</button><button type="button" class="btn" id="sbSim">🤖 Chạy trên sân mô phỏng</button></div>
+      <div id="sbPyBox" hidden><pre id="sbPy" class="cdout"></pre><button type="button" class="btn" id="sbPyBoard">Chèn mã Python lên bảng</button></div></div>
       <div class="tvside"><canvas id="sbPrev"></canvas></div></div>
     <div class="row end"><button type="button" class="btn plain" id="sbCancel">Huỷ</button><button class="btn primary" id="sbOk">Chèn vào trang</button></div>
+  </form></dialog>
+
+  <dialog id="robotDlg" class="wide"><form class="dlg" method="dialog" id="robotForm" novalidate>
+    <div class="fhead"><h2>Mô phỏng robot</h2><select id="rbKit" aria-label="Bộ khối"><option value="spike">LEGO SPIKE Prime</option><option value="vex">VEXcode V5</option><option value="scratch">Scratch (sân khấu)</option></select></div>
+    <div class="chips" id="rbSamples"></div>
+    <div class="tvwrap"><div class="tvprops">
+      <label class="tvf"><span>Chương trình khối (như hộp thoại Khối lệnh)</span><textarea id="rbSrc" rows="11" class="mono" spellcheck="false"></textarea></label>
+      <label class="tvf"><span id="rbFieldL">Sân (cm): sân R C · xuất phát x y hướng(°) · hộp x y rộng cao · màu đỏ x y rộng cao</span><textarea id="rbField" rows="5" class="mono" spellcheck="false"></textarea></label>
+      <p class="hint" id="rbHint">Hướng 0° là sang phải, 90° là xuống dưới. Mô phỏng: đi, quay, lặp, chờ, nếu…thì, lặp đến khi; cảm biến khoảng cách, màu, va chạm. Robot dừng khi chạm vật cản.</p>
+      <div class="row"><button type="button" class="btn primary" id="rbPlay">▶ Chạy</button><label class="tvf" style="flex:1"><span id="rbStepL">Bước</span><input type="range" id="rbStep" min="0" max="0" value="0"></label></div>
+    </div><div class="tvside"><canvas id="rbPrev"></canvas></div></div>
+    <div class="row end"><button type="button" class="btn plain" id="rbCancel">Huỷ</button><button class="btn primary" id="rbOk">Chèn vào trang</button></div>
   </form></dialog>
 
   <dialog id="srDlg" class="wide"><div class="dlg"><h2>Chạy dự án Scratch</h2>
@@ -1396,6 +1415,7 @@ function drawObj(c,o,scale){
   else if(o.type==='algo')drawAlgo(c,o);
   else if(o.type==='erd')drawErd(c,o);
   else if(o.type==='scratch')drawScratch(c,o);
+  else if(o.type==='robot')drawRobot(c,o);
   else if(o.type==='table')drawTable(c,o);
   else if(o.type==='stamp')drawStamp(c,o);
   else if(o.type==='note')drawNote(c,o);
@@ -4986,7 +5006,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.9.0';
+const APPVER='2.12.0';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
@@ -5230,12 +5250,12 @@ const SB=$('#selBar');
 function delSel(){const all=[...sel],d=all.filter(o=>!o.lock&&!o.pin),kept=all.filter(o=>o.pin).length;sel.clear();if(kept)setTimeout(()=>toast(kept+' đối tượng đang khoá nên không xoá. Chọn rồi bấm 🔓 để mở khoá trước.'),0);if(!d.length){requestDraw();return}objs=objs.filter(o=>!d.includes(o));commit();toast(d.length>1?'Đã xoá '+d.length+' đối tượng.':'Đã xoá.',UNDO_ACT)}
 function dupSel(){if(!sel.size)return;const n=[...sel].map(o=>{const c=clone(o);delete c.pin;moveObj(c,20,20);return c});objs.push(...n);sel=new Set(n);commit()}
 function editObj(o){
-  if(o.type==='code')openCode(o);else if(o.type==='flow')openFlow(o);else if(o.type==='nbase')openNbase(o);else if(o.type==='gates'||(o.type==='table'&&o.gen==='truth'))openLogic(o);
+  if(o.type==='robot')openRobot(o);else if(o.type==='code')openCode(o);else if(o.type==='flow')openFlow(o);else if(o.type==='nbase')openNbase(o);else if(o.type==='gates'||(o.type==='table'&&o.gen==='truth'))openLogic(o);
   else if(o.type==='sheet')openSheet(o);else if(o.type==='algo')openAlgo(o);else if(o.type==='scratch')openScratch(o);else if(o.type==='erd')openSql();
   else if(o.type==='tvo')openTvo(o);else if(o.type==='table')openTable(o);else if(o.type==='note')openNote(o);else if(o.type==='callout')startCallText(o);else if(o.type==='chart')openChart(o);else if(o.type==='formula'&&o.chem)openChem(o);else if(o.type==='geo')openGeo(o);else if(o.type==='tvfig')openTv(o);else if(o.type==='rev')openRev(o);else if(o.type==='graph')openGraph(o);
   else if(o.type==='bbt')openBBT(o);else if(o.type==='formula')openFormula(o);else if(o.type==='text'){sel.clear();startText(null,o)}
 }
-const EDITABLE=['code','flow','nbase','gates','sheet','algo','scratch','erd','tvo','table','note','callout','chart','geo','tvfig','rev','graph','bbt','formula','text'];
+const EDITABLE=['robot','code','flow','nbase','gates','sheet','algo','scratch','erd','tvo','table','note','callout','chart','geo','tvfig','rev','graph','bbt','formula','text'];
 function orderSel(top){if(!sel.size)return;const keep=objs.filter(o=>!sel.has(o)),mv=objs.filter(o=>sel.has(o));objs=top?keep.concat(mv):mv.concat(keep);commit()}
 const sbBtn={
   del:mkBtn(SB,pa('M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6'),'Xoá đối tượng đang chọn (Delete)',delSel,'sbdel'),
@@ -6247,14 +6267,15 @@ function drawAlgo(c,o){
 }
 /* ---------- thanh điều khiển bước (dưới hình đang chọn) ---------- */
 let stAnim=0;
-function stTarget(){if(tool!=='select'||sel.size!==1)return null;const o=[...sel][0];return o.type==='algo'?o:null}
-function stGo(o,v){const n=algoSteps(o).length;o.st=clamp(v,0,n-1);save();requestDraw()}
+const stepsOf=o=>o.type==='robot'?robotSteps(o).steps:algoSteps(o);
+function stTarget(){if(tool!=='select'||sel.size!==1)return null;const o=[...sel][0];return o.type==='algo'||o.type==='robot'?o:null}
+function stGo(o,v){const n=stepsOf(o).length;o.st=clamp(v,0,n-1);save();requestDraw()}
 const SBAR=$('#stBar'),stB={};
 for(const[k,t,l,f]of[['first','⏮','Về bước đầu',o=>stGo(o,0)],['prev','◀','Bước trước',o=>stGo(o,(o.st|0)-1)],['next','▶','Bước sau',o=>stGo(o,(o.st|0)+1)],['last','⏭','Bước cuối',o=>stGo(o,1e9)],
-  ['play','▶▶','Tự chạy',o=>{if(stAnim){clearInterval(stAnim);stAnim=0;placeStBar();return}if((o.st|0)>=algoSteps(o).length-1)o.st=0;stAnim=setInterval(()=>{const n=algoSteps(o).length;if(!sel.has(o)||(o.st|0)>=n-1){clearInterval(stAnim);stAnim=0;placeStBar();return}stGo(o,(o.st|0)+1)},900);placeStBar()}]]){
+  ['play','▶▶','Tự chạy',o=>{if(stAnim){clearInterval(stAnim);stAnim=0;placeStBar();return}if((o.st|0)>=stepsOf(o).length-1)o.st=0;stAnim=setInterval(()=>{const n=stepsOf(o).length;if(!sel.has(o)||(o.st|0)>=n-1){clearInterval(stAnim);stAnim=0;placeStBar();return}stGo(o,(o.st|0)+1)},900);placeStBar()}]]){
   const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=t;b.title=l;b.setAttribute('aria-label',l);b.onclick=()=>{const o=stTarget();if(o)f(o)};SBAR.append(b);stB[k]=b}
 const stLbl=document.createElement('span');SBAR.append(stLbl);
-function placeStBar(){const o=stTarget();if(!o||drag){SBAR.hidden=true;return}SBAR.hidden=false;const n=algoSteps(o).length;stLbl.textContent='Bước '+((o.st|0)+1)+'/'+n;stB.play.textContent=stAnim?'❚❚':'▶▶';
+function placeStBar(){const o=stTarget();if(!o||drag){SBAR.hidden=true;return}SBAR.hidden=false;const n=stepsOf(o).length;stLbl.textContent='Bước '+((o.st|0)+1)+'/'+n;stB.play.textContent=stAnim?'❚❚':'▶▶';
   const b=bbox(o),bw=SBAR.offsetWidth;SBAR.style.left=clamp((b.x+b.w/2-view.x)*view.s-bw/2,8,Math.max(8,cv.clientWidth-bw-8))+'px';SBAR.style.top=clamp((b.y+b.h-view.y)*view.s+12,8,cv.clientHeight-SBAR.offsetHeight-8)+'px'}
 /* ---------- hộp thoại ---------- */
 const agDlg=$('#algoDlg');let agEdit=null;
@@ -6327,11 +6348,13 @@ function drawErd(c,o){const L=erdLayout(o),ink=res(o.color||'ink');c.save();c.tr
   c.restore()}
 /* ---------- khối lệnh Scratch (thư viện scratchblocks, viết bằng chữ tiếng Việt hoặc tiếng Anh) ---------- */
 let sbP=null;
-function getSb(){return sbP||(sbP=loadLib(LIBS2.sb).then(()=>loadLib(LIBS2.sbvi)).then(()=>window.scratchblocks).catch(e=>{sbP=null;throw e}))}
+function getSb(){return sbP||(sbP=loadLib(LIBS2.sb).then(()=>loadLib(LIBS2.sbvi)).then(()=>sbViFix(window.scratchblocks)).catch(e=>{sbP=null;throw e}))}
+/* bản dịch tiếng Việt của scratchblocks thiếu chữ "kết thúc" và cờ xanh viết bằng chữ: thêm để gõ tự nhiên */
+function sbViFix(SB){const vi=SB.allLanguages.vi;if(vi&&!vi.aliases['kết thúc']){Object.assign(vi.aliases,{'kết thúc':'scratchblocks:end','khi bấm vào lá cờ xanh':'EVENT_WHENFLAGCLICKED','khi bấm vào cờ xanh':'EVENT_WHENFLAGCLICKED'});SB.loadLanguages({vi})}return SB}
 const sbCache=new Map();
 /* khối lệnh tô màu bằng lớp CSS: phải xuất SVG kèm bảng màu (exportSVGString), nếu không ảnh mất màu, khối nào cũng đen */
-function sbImg(o){const lang=o.lang||'en',key=o.src+'|'+lang;let e=sbCache.get(key);if(e)return e;e={ready:false};sbCache.set(key,e);
-  getSb().then(SB=>{const view=SB.newView(SB.parse(o.src,{languages:lang==='en'?['en']:['en',lang]}),{style:'scratch3',scale:1}),svg=view.render();
+function sbImg(o){const lang=o.lang||'en',kit=o.kit||'scratch',key=o.src+'|'+lang+'|'+kit;let e=sbCache.get(key);if(e)return e;e={ready:false};sbCache.set(key,e);
+  getSb().then(SB=>{if(kit!=='scratch')kitLang(SB);const view=SB.newView(SB.parse(kit==='scratch'?o.src:kitAnnotate(o.src,kit),{languages:lang==='en'?['en']:['en',lang]}),{style:'scratch3',scale:1}),svg=view.render();
     const w=parseFloat(svg.getAttribute('width')),h=parseFloat(svg.getAttribute('height'));e.w=w;e.h=h;let s=view.exportSVGString();
     if(!/^<svg[^>]*xmlns=/.test(s))s=s.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"');if(!/^<svg[^>]*viewBox=/.test(s))s=s.replace('<svg','<svg viewBox="0 0 '+w+' '+h+'"');
     s=s.replace(/^(<svg[^>]*?) width="[^"]*"/,'$1 width="'+w*2+'"').replace(/^(<svg[^>]*?) height="[^"]*"/,'$1 height="'+h*2+'"');
@@ -6340,14 +6363,14 @@ function drawScratch(c,o){const e=sbImg(o);if(e.ready)c.drawImage(e.img,o.x,o.y,
 const sbDlg=$('#sbDlg');let sbEdit=null;
 const SB_SAMPLE={vi:'khi bấm vào lá cờ xanh\nđặt [điểm v] thành (0)\nlặp lại (10)\n  di chuyển (10) bước\n  thay đổi [điểm v] một lượng (1)\nkết thúc\nnói [Xong rồi!] trong (2) giây',
   en:'when flag clicked\nset [score v] to (0)\nrepeat (10)\n  move (10) steps\n  change [score v] by (1)\nend\nsay [Done!] for (2) seconds'};
-function sbPrev(){const d={src:$('#sbSrc').value,lang:$('#sbLang').value},e=sbImg(d),cvp=$('#sbPrev'),R=cvp.getBoundingClientRect();if(!R.width)return;cvp.width=R.width*dpr;cvp.height=R.height*dpr;const c=cvp.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+function sbPrev(){const d={src:$('#sbSrc').value,lang:$('#sbLang').value,kit:sbKit},e=sbImg(d),cvp=$('#sbPrev'),R=cvp.getBoundingClientRect();if(!R.width)return;cvp.width=R.width*dpr;cvp.height=R.height*dpr;const c=cvp.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
   c.fillStyle='#fff';c.fillRect(0,0,R.width,R.height);$('#sbErr').textContent=e.err||'';if(e.ready){const k=Math.min((R.width-16)/e.w,(R.height-16)/e.h,1.6);c.drawImage(e.img,8,8,e.w*k,e.h*k)}}
 /* mặc định tiếng Anh như Scratch chuẩn; giáo viên cần thì chọn tiếng Việt */
-function openScratch(o){sbEdit=o||null;$('#sbLang').value=o?o.lang||'en':'en';$('#sbSrc').value=o?o.src:SB_SAMPLE[$('#sbLang').value];$('#sbOk').textContent=o?'Cập nhật':'Chèn vào trang';sbDlg.showModal();requestAnimationFrame(sbPrev)}
+function openScratch(o,kit){sbEdit=o||null;sbSetKit(o?o.kit||'scratch':kit||'scratch');$('#sbPyBox').hidden=true;$('#sbLang').value=o?o.lang||'en':'en';$('#sbSrc').value=o?o.src:sbKit==='scratch'?SB_SAMPLE[$('#sbLang').value]:Object.values(KIT_SAMPLE[sbKit])[0];$('#sbOk').textContent=o?'Cập nhật':'Chèn vào trang';sbDlg.showModal();requestAnimationFrame(sbPrev)}
 $('#sbSrc').addEventListener('input',()=>{clearTimeout(sbDlg._t);sbDlg._t=setTimeout(sbPrev,250)});
-$('#sbLang').addEventListener('change',()=>{const cur=$('#sbSrc').value.trim();if(!cur||Object.values(SB_SAMPLE).includes(cur))$('#sbSrc').value=SB_SAMPLE[$('#sbLang').value];sbPrev()});
+$('#sbLang').addEventListener('change',()=>{const cur=$('#sbSrc').value.trim();if(!cur||Object.values(SB_SAMPLE).includes(cur))$('#sbSrc').value=SB_SAMPLE[$('#sbLang').value];sbPalette();sbPrev()});
 $('#sbCancel').onclick=()=>sbDlg.close();
-$('#sbForm').addEventListener('submit',e=>{const d={type:'scratch',src:$('#sbSrc').value,lang:$('#sbLang').value},im=sbImg(d);if(!im.ready){e.preventDefault();toast(im.err||'Khối lệnh chưa dựng xong, chờ một chút.');return}
+$('#sbForm').addEventListener('submit',e=>{const d={type:'scratch',src:$('#sbSrc').value,lang:$('#sbLang').value,kit:sbKit},im=sbImg(d);if(!im.ready){e.preventDefault();toast(im.err||'Khối lệnh chưa dựng xong, chờ một chút.');return}
   if(sbEdit){const k=sbEdit.w/(sbEdit.bw||sbEdit.w);Object.assign(sbEdit,d,{bw:im.w,w:im.w*k,h:im.h*k})}else{const c=center(),k=1.6,o={...d,bw:im.w,w:im.w*k,h:im.h*k};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
 /* chạy dự án Scratch đã chia sẻ (bản web): trình phát TurboWarp */
 function openScratchRun(){closePops();if(DESK_LIB){toast('Chạy dự án Scratch chỉ có ở bản web (cần mạng): https://hncanhlsts.github.io/bang-ve-toan/');return}$('#srDlg').showModal()};
@@ -6403,6 +6426,672 @@ const TIN=[['💻','Mã nguồn (Python, C++, Pascal, SQL, HTML…)',()=>openCod
   ['🗄','Cơ sở dữ liệu: chạy SQL, sơ đồ quan hệ',()=>openSql()],['🧩','Khối lệnh Scratch',()=>openScratch()],['▶','Chạy dự án Scratch (bản web)',()=>openScratchRun()],['🖧','Mạng máy tính: thiết bị, mô hình mạng',()=>openNet()]];
 for(const[ic,l,f]of TIN){const b=document.createElement('button');b.type='button';b.className='item';b.textContent=ic+'  '+l;b.onclick=()=>{closePops();f()};$('#tinList').append(b)}
 for(const b of $('#clipNet').querySelectorAll('[data-t]'))b.onclick=()=>{clipDlg.close();netTopo(b.dataset.t)};
+/* ---------- lập trình robot: khối lệnh LEGO SPIKE Prime, VEXcode V5 (vẽ lên bảng) và sân mô phỏng robot chạy chương trình khối ----------
+   Mỗi bộ khối: danh sách khối {t: mẫu cú pháp scratchblocks, c: nhóm, hat: khối mũ, r: 'b' (đúng/sai) / 'r' (giá trị),
+   py(a,P): Python (P dịch biểu thức lồng), run(a,S): hành động mô phỏng, val(a,S): giá trị cảm biến, cond(a,P): điều kiện Python của khối mũ SPIKE}.
+   Danh mục khối theo bảng khối gốc: VEXcode V5 đối chiếu api.vex.com; LEGO SPIKE Prime theo SPIKE App 3 (Word Blocks, gồm các nhóm mở rộng
+   More Motors, More Movement, More Sensors; chưa gồm Weather, Music, Line Graph, Bar Graph, Display vì chạy trên máy tính, không trên robot).
+   Python của SPIKE theo thư viện SPIKE App 3 (hub, motor, motor_pair, runloop…). Màu nhóm gần giống phần mềm của hãng (không dùng logo, hình ảnh của hãng). */
+const KIT_CAT={
+  spike:{events:['Sự kiện','#f5c402'],ctl:['Điều khiển','#ffab19',1],motors:['Động cơ','#0090f5'],move:['Di chuyển','#ff4ccd'],light:['Đèn','#9a6bf8'],sound:['Âm thanh','#c64ce6'],sensors:['Cảm biến','#4cbfe6'],ops:['Phép toán','#59c059',1],vars:['Biến, danh sách, Khối của tôi','#ff8c1a',1]},
+  vex:{events:['Sự kiện','#ffbf00'],ctl:['Điều khiển','#ffab19',1],drive:['Drivetrain','#4c97ff'],motion:['Động cơ (Motion)','#5b7dd6'],looks:['Màn hình (Looks)','#9966ff'],sensing:['Cảm biến (Sensing)','#5cb1d6'],ops:['Phép toán','#59c059',1],vars:['Biến, danh sách, My Blocks','#ff8c1a',1]},
+  scratch:{motion:['Chuyển động','#4c97ff'],looks:['Hiển thị','#9966ff'],sound:['Âm thanh','#cf63cf'],events:['Sự kiện','#ffbf00'],ctl:['Điều khiển','#ffab19'],sensing:['Cảm biến','#5cb1d6'],ops:['Các phép toán','#59c059'],vars:['Các biến số','#ff8c1a'],list:['Danh sách','#ff661a'],my:['Khối của tôi','#ff6680'],pen:['Bút vẽ','#0fbd8c']}};
+/* bảng khối Scratch 3 theo đúng thứ tự trong Scratch (chữ tiếng Anh; chọn Tiếng Việt thì thư viện scratchblocks tự dịch) */
+const SCRATCH_PAL={
+  motion:['move (10) steps','turn cw (15) degrees','turn ccw (15) degrees','go to [random position v]','go to x: (0) y: (0)','glide (1) secs to [random position v]','glide (1) secs to x: (0) y: (0)','point in direction (90)','point towards [mouse-pointer v]','change x by (10)','set x to (0)','change y by (10)','set y to (0)','if on edge, bounce','set rotation style [left-right v]','(x position)','(y position)','(direction)'],
+  looks:['say [Hello!] for (2) seconds','say [Hello!]','think [Hmm...] for (2) seconds','think [Hmm...]','switch costume to [costume2 v]','next costume','switch backdrop to [backdrop1 v]','next backdrop','change size by (10)','set size to (100) %','change [color v] effect by (25)','set [color v] effect to (0)','clear graphic effects','show','hide','go to [front v] layer','go [forward v] (1) layers','(costume [number v])','(backdrop [number v])','(size)'],
+  sound:['play sound [Meow v] until done','start sound [Meow v]','stop all sounds','change [pitch v] effect by (10)','set [pitch v] effect to (100)','clear sound effects','change volume by (-10)','set volume to (100) %','(volume)'],
+  events:['when flag clicked','when [space v] key pressed','when this sprite clicked','when backdrop switches to [backdrop1 v]','when [loudness v] > (10)','when I receive [message1 v]','broadcast [message1 v]','broadcast [message1 v] and wait'],
+  ctl:['wait (1) seconds','repeat (10)\n  \nend','forever\n  \nend','if <> then\n  \nend','if <> then\n  \nelse\n  \nend','wait until <>','repeat until <>\n  \nend','stop [all v]','when I start as a clone','create clone of [myself v]','delete this clone'],
+  sensing:['<touching [mouse-pointer v] ?>','<touching color [#ff0000] ?>','<color [#ff0000] is touching [#00ff00] ?>','(distance to [mouse-pointer v])','ask [What\'s your name?] and wait','(answer)','<key [space v] pressed?>','<mouse down?>','(mouse x)','(mouse y)','set drag mode [draggable v]','(loudness)','(timer)','reset timer','([backdrop # v] of [Stage v])','(current [year v])','(days since 2000)','(username)'],
+  ops:['(() + ())','(() - ())','(() * ())','(() / ())','(pick random (1) to (10))','<[] > (50)>','<[] < (50)>','<[] = (50)>','<<> and <>>','<<> or <>>','<not <>>','(join [apple] [banana])','(letter (1) of [apple])','(length of [apple])','<[apple] contains [a] ?>','(() mod ())','(round ())','([abs v] of ())'],
+  vars:['(my variable)','set [my variable v] to (0)','change [my variable v] by (1)','show variable [my variable v]','hide variable [my variable v]'],
+  list:['(my list :: list)','add [thing] to [my list v]','delete (1) of [my list v]','delete all of [my list v]','insert [thing] at (1) of [my list v]','replace item (1) of [my list v] with [thing]','(item (1) of [my list v])','(item # of [thing] in [my list v])','(length of [my list v])','<[my list v] contains [thing] ?>','show list [my list v]','hide list [my list v]'],
+  my:['define my block','my block'],
+  pen:['erase all','stamp','pen down','pen up','set pen color to [#ff0000]','change pen [color v] by (10)','set pen [color v] to (50)','change pen size by (1)','set pen size to (1)']};
+/* màu bút Scratch (color, saturation, brightness 0–100) → mã màu */
+function penHex(p){const h=((p.color%100)+100)%100*3.6,s=Math.max(0,Math.min(100,p.saturation))/100,v=Math.max(0,Math.min(100,p.brightness))/100,f=n=>{const k=(n+h/60)%6;return Math.round(255*(v-v*s*Math.max(0,Math.min(k,4-k,1))))};return'#'+[f(5),f(3),f(1)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+/* hai màu gần giống nhau (tên màu của sân hoặc mã #rrggbb) */
+function colNear(a,b){const rgb=c=>{c=String(COLN[String(c).toLowerCase()]||c);const m=c.match(/^#?([0-9a-f]{6})$/i);if(!m)return null;const n=parseInt(m[1],16);return[n>>16,n>>8&255,n&255]};const x=rgb(a),y=rgb(b);return!!x&&!!y&&Math.hypot(x[0]-y[0],x[1]-y[1],x[2]-y[2])<120}
+/* khối cấu trúc chỉ có trong bảng khối (chương trình đọc chúng bằng progParse) */
+const KIT_CTL={
+  spike:['wait (1) seconds','repeat (10)\n  \nend','forever\n  \nend','if <> then\n  \nend','if <> then\n  \nelse\n  \nend','wait until <>','repeat until <>\n  \nend','stop [all v]'],
+  vex:['wait (1) seconds','wait until <>','repeat (10)\n  \nend','forever\n  \nend','repeat until <>\n  \nend','while <>\n  \nend','if <> then\n  \nend','if <> then\n  \nelse\n  \nend']};
+const KIT_OPS=['(() + ())','(() - ())','(() * ())','(() / ())','<() < (100)>','<() = (100)>','<() > (100)>','<<> and <>>','<<> or <>>','<not <>>','(() mod ())'];
+const KIT_VARS=['(my variable)','(my list)','define my block\n  ','my block'];
+const DIR=s=>/back|lùi|ccw|counter|left|trái|reverse/i.test(s||'')?-1:1;
+const knum=s=>{const v=parseFloat(String(s).replace(',','.'));return isFinite(v)?v:0};
+const portOf=s=>String(s||'A').trim().toUpperCase().replace(/[^A-F]/g,'')||'A';
+/* bánh xe SPIKE: mặc định 1 vòng động cơ = 17,5 cm (như khối set 1 motor rotation); hai bánh cách nhau ≈ 11,1 cm nên quay tại chỗ 180° động cơ = robot quay 90° */
+const WHEEL=17.5,TRACK=35/Math.PI;
+const toCm=(v,u,S)=>{const w=S&&S.cmRot||WHEEL;return/mm/i.test(u)?v/10:/inch/i.test(u)?v*2.54:/rot|vòng|turn/i.test(u)?v*w:/deg/i.test(u)?v/360*w:/sec/i.test(u)?v*(S?S.v():20):/%/.test(u)?v*2:v};
+/* Python: số đã biết thì tính sẵn, biểu thức thì giữ nguyên */
+const pm=(e,k)=>{e=String(e).trim();const v=parseFloat(e);return String(v)===e?String(Math.round(v*k*100)/100):'int('+e+' * '+(+k.toFixed(3))+')'};
+const pmi=(e,k)=>{e=String(e).trim();const v=parseFloat(e);return String(v)===e?String(Math.round(v*k)):'int('+e+' * '+(+k.toFixed(3))+')'};
+const pyv=s=>String(s).trim().replace(/([a-z])([A-Z])/g,'$1_$2').replace(/([A-Za-z])(\d+)$/,'$1_$2').replace(/\W+/g,'_').toLowerCase();
+const FR=s=>DIR(s)>0?'FORWARD':'REVERSE',LR=s=>DIR(s)>0?'RIGHT':'LEFT',UP=s=>String(s).trim().toUpperCase().replace(/[\s/-]+/g,'_');
+const VU=u=>/inch/i.test(u)?'INCHES':/mm/i.test(u)?'MM':/turn/i.test(u)?'TURNS':'DEGREES';
+const midi=n=>Math.round(440*Math.pow(2,(n-69)/12));
+const MOT=(S,p)=>S.mot[p]||(S.mot[p]={pos:0,rel:0,sp:75,spin:0});
+const REFL={white:95,yellow:80,red:55,green:30,blue:30,black:8},HUE={red:0,yellow:60,green:120,blue:220,white:0,black:0};
+/* SPIKE: màu trong khối → hằng của module color; lái "right: 30" → 30, "left: 30" → −30 */
+const SCOL=s=>({violet:'MAGENTA',magenta:'MAGENTA',purple:'PURPLE','light blue':'AZURE',azure:'AZURE',cyan:'AZURE','no color':'UNKNOWN',none:'UNKNOWN'}[String(s).trim().toLowerCase()]||UP(s));
+const steerOf=s=>{const m=String(s).match(/-?\d+([.,]\d+)?/),v=m?knum(m[0]):0;return/left|trái/i.test(s)?-Math.abs(v):v};
+const steerPy=(s,P)=>/^\s*-?\d|left|right/i.test(s)?String(steerOf(s)):P(s);
+/* SPIKE: tốc độ % → độ/giây (động cơ lớn tối đa ≈ 1050, vừa ≈ 1110) */
+const MV='velocity=move_speed',MSP=a=>'motor_speed.get(port.'+portOf(a)+', 750)';
+const SPDEG=(u,S)=>/rot/i.test(u)?360:/deg/i.test(u)?1:/inch/i.test(u)?2.54*360/WHEEL:360/WHEEL;
+const sdist=a=>(/mm/.test(a)?'':/inch/i.test(a)?' / 25.4':/%/.test(a)?' / 20':' / 10');
+const AX=s=>/z/i.test(s)?2:/y/i.test(s)?1:0;
+/* khối dùng chung: tin nhắn, biến, danh sách, phép toán */
+const KIT_COMMON=[
+  {t:'when I receive [message1 v]',c:'events',hat:1,recv:1,py:()=>''},
+  {t:'broadcast [message1 v] and wait',c:'events',py:(a)=>'@bc '+a[0]+' wait',run:(a,S)=>S.bc(a[0])},
+  {t:'broadcast [message1 v]',c:'events',py:(a)=>'@bc '+a[0],run:(a,S)=>S.bc(a[0])},
+  {t:'set [my variable v] to (0)',c:'vars',py:(a,P)=>pyv(a[0])+' = '+P(a[1]),run:(a,S)=>{const v=S.ev(a[1]);S.vars[a[0]]=typeof v==='number'?v:isFinite(+v)&&v!==''?+v:v}},
+  {t:'change [my variable v] by (1)',c:'vars',py:(a,P)=>pyv(a[0])+' += '+P(a[1]),run:(a,S)=>{S.vars[a[0]]=knum(S.vars[a[0]])+S.n(a[1])}},
+  {t:'add [thing] to [my list v]',c:'vars',py:(a,P)=>pyv(a[1])+'.append('+P(a[0])+')',run:(a,S)=>{S.list(a[1]).push(S.ev(a[0]))}},
+  {t:'delete (1) of [my list v]',c:'vars',py:(a,P)=>'del '+pyv(a[1])+'['+P(a[0])+' - 1]',run:(a,S)=>{S.list(a[1]).splice(S.n(a[0])-1,1)}},
+  {t:'delete all of [my list v]',c:'vars',py:a=>pyv(a[0])+'.clear()',run:(a,S)=>{S.list(a[0]).length=0}},
+  {t:'insert [thing] at (1) of [my list v]',c:'vars',py:(a,P)=>pyv(a[2])+'.insert('+P(a[1])+' - 1, '+P(a[0])+')',run:(a,S)=>{S.list(a[2]).splice(S.n(a[1])-1,0,S.ev(a[0]))}},
+  {t:'replace item (1) of [my list v] with [thing]',c:'vars',py:(a,P)=>pyv(a[1])+'['+P(a[0])+' - 1] = '+P(a[2]),run:(a,S)=>{S.list(a[1])[S.n(a[0])-1]=S.ev(a[2])}},
+  {t:'(item (1) of [my list v])',c:'vars',r:'r',py:(a,P)=>pyv(a[1])+'['+P(a[0])+' - 1]',val:(a,S)=>{const v=S.list(a[1])[S.n(a[0])-1];return v===undefined?'':v}},
+  {t:'(item # of [thing] in [my list v])',c:'vars',r:'r',py:(a,P)=>'('+pyv(a[1])+'.index('+P(a[0])+') + 1 if '+P(a[0])+' in '+pyv(a[1])+' else 0)',val:(a,S)=>S.list(a[1]).map(String).indexOf(String(S.ev(a[0])))+1},
+  {t:'(pick random (1) to (10))',c:'ops',r:'r',py:(a,P)=>'random.randint('+P(a[0])+', '+P(a[1])+')',val:(a,S)=>{const x=S.n(a[0]),y=S.n(a[1]),lo=Math.min(x,y),hi=Math.max(x,y);return lo+Math.floor(S.rnd()*(hi-lo+1))}},
+  {t:'<is (0) in between (-10) and (10) ?>',c:'ops',r:'b',py:(a,P)=>P(a[1])+' <= '+P(a[0])+' <= '+P(a[2]),val:(a,S)=>{const x=S.n(a[0]),lo=S.n(a[1]),hi=S.n(a[2]);return x>=Math.min(lo,hi)&&x<=Math.max(lo,hi)}},
+  {t:'(join [apple] [banana])',c:'ops',r:'r',py:(a,P)=>'str('+P(a[0])+') + str('+P(a[1])+')',val:(a,S)=>String(S.ev(a[0]))+String(S.ev(a[1]))},
+  {t:'(letter (1) of [apple])',c:'ops',r:'r',py:(a,P)=>'str('+P(a[1])+')['+P(a[0])+' - 1]',val:(a,S)=>String(S.ev(a[1])).charAt(S.n(a[0])-1)},
+  /* length of, contains: dùng chung cho chuỗi và danh sách (tên danh sách đã dùng trong chương trình) */
+  {t:'(length of [apple])',c:'ops',r:'r',py:(a,P)=>pyLists.has(a[0])?'len('+pyv(a[0])+')':'len(str('+P(a[0])+'))',val:(a,S)=>a[0]in S.lists?S.lists[a[0]].length:String(S.ev(a[0])).length},
+  {t:'<[apple] contains [a] ?>',c:'ops',r:'b',py:(a,P)=>pyLists.has(a[0])?P(a[1])+' in '+pyv(a[0]):'str('+P(a[1])+') in str('+P(a[0])+')',val:(a,S)=>a[0]in S.lists?S.lists[a[0]].map(String).includes(String(S.ev(a[1]))):String(S.ev(a[0])).toLowerCase().includes(String(S.ev(a[1])).toLowerCase())},
+  {t:'(round (0))',c:'ops',r:'r',py:(a,P)=>'round('+P(a[0])+')',val:(a,S)=>Math.round(S.n(a[0]))},
+  {t:'([abs v] of (0))',c:'ops',r:'r',py:(a,P)=>{const f=String(a[0]).toLowerCase(),x=P(a[1]);return f==='abs'?'abs('+x+')':f==='floor'?'math.floor('+x+')':f==='ceiling'?'math.ceil('+x+')':f==='sqrt'?'math.sqrt('+x+')':/^(sin|cos|tan)$/.test(f)?'math.'+f+'(math.radians('+x+'))':/^a(sin|cos|tan)$/.test(f)?'math.degrees(math.'+f+'('+x+'))':f==='ln'?'math.log('+x+')':f==='log'?'math.log10('+x+')':f==='e ^'?'math.exp('+x+')':f==='10 ^'?'10 ** '+x:'math.'+f+'('+x+')'},
+    val:(a,S)=>{const x=S.n(a[1]),f=String(a[0]).toLowerCase(),r=Math.PI/180;return f==='abs'?Math.abs(x):f==='floor'?Math.floor(x):f==='ceiling'?Math.ceil(x):f==='sqrt'?Math.sqrt(x):f==='sin'?Math.sin(x*r):f==='cos'?Math.cos(x*r):f==='tan'?Math.tan(x*r):f==='asin'?Math.asin(x)/r:f==='acos'?Math.acos(x)/r:f==='atan'?Math.atan(x)/r:f==='ln'?Math.log(x):f==='log'?Math.log10(x):f==='e ^'?Math.exp(x):f==='10 ^'?Math.pow(10,x):x}}];
+const KITS={
+  spike:[
+    /* Sự kiện (chữ trên khối theo SPIKE App 3) */
+    {t:'when program starts',c:'events',hat:1,start:1},
+    {t:'[A v] when color is [red v]',c:'events',hat:1,cond:a=>'color_sensor.color(port.'+portOf(a[0])+') is color.'+SCOL(a[1])},
+    {t:'[A v] when [pressed v]',c:'events',hat:1,cond:a=>/hard/i.test(a[1])?'force_sensor.force(port.'+portOf(a[0])+') > 50':/release/i.test(a[1])?'not force_sensor.pressed(port.'+portOf(a[0])+')':'force_sensor.pressed(port.'+portOf(a[0])+')'},
+    {t:'[A v] when [closer than v] (8) [% v]',c:'events',hat:1,cond:(a,P)=>'distance_sensor.distance(port.'+portOf(a[0])+')'+sdist(a[3])+' '+(/far/i.test(a[1])?'>':/exact/i.test(a[1])?'==':'<')+' '+P(a[2])},
+    {t:'when tilted [any v]',c:'events',hat:1,cond:()=>'max(abs(motion_sensor.tilt_angles()[1]), abs(motion_sensor.tilt_angles()[2])) > 150'},
+    {t:'when [front v] is up',c:'events',hat:1,cond:a=>'motion_sensor.up_face() == motion_sensor.'+UP(a[0])},
+    {t:'when [shaken v]',c:'events',hat:1,cond:a=>'motion_sensor.gesture() == motion_sensor.'+(/tap/i.test(a[0])?'TAPPED':/fall/i.test(a[0])?'FALLING':'SHAKEN')},
+    {t:'when [left v] Button [pressed v]',c:'events',hat:1,cond:a=>'button.pressed(button.'+UP(a[0])+')'+(/release/i.test(a[1])?' == 0':' > 0')},
+    {t:'when timer > (10)',c:'events',hat:1,cond:(a,P)=>'(time.ticks_ms() - t0) / 1000 > '+P(a[0])},
+    {t:'when <>',c:'events',hat:1,cond:(a,P)=>P(a[0])},
+    /* Điều khiển riêng của SPIKE */
+    {t:'stop other stacks',c:'ctl',ann:'control',py:()=>'# dừng các kịch bản khác (trong Python: không gọi tiếp các coroutine khác)',run:()=>{}},
+    /* Động cơ */
+    {t:'[A v] run [clockwise v] for (1) [rotations v]',c:'motors',py:(a,P)=>/sec/i.test(a[3])?'await motor.run_for_time(port.'+portOf(a[0])+', '+pmi(P(a[2]),1000)+', '+(DIR(a[1])<0?'-':'')+MSP(a[0])+')':'await motor.run_for_degrees(port.'+portOf(a[0])+', '+pmi(P(a[2]),/rot/i.test(a[3])?360:1)+', '+(DIR(a[1])<0?'-':'')+MSP(a[0])+')',
+      run:(a,S)=>{const m=MOT(S,a[0]),v=S.n(a[2]),d=/rot/i.test(a[3])?v*360:/sec/i.test(a[3])?v*m.sp*10:v;m.pos+=DIR(a[1])*d;m.rel+=DIR(a[1])*d;S.t+=Math.abs(d)/(Math.abs(m.sp)*10||1)}},
+    {t:'[A v] go [shortest path v] to position (0)',c:'motors',py:(a,P)=>'await motor.run_to_absolute_position(port.'+portOf(a[0])+', '+P(a[2])+', '+MSP(a[0])+', direction=motor.'+(/counter/i.test(a[1])?'COUNTERCLOCKWISE':/clock/i.test(a[1])?'CLOCKWISE':'SHORTEST_PATH')+')',run:(a,S)=>{MOT(S,a[0]).pos=S.n(a[2])}},
+    {t:'[A v] start motor [clockwise v]',c:'motors',py:a=>'motor.run(port.'+portOf(a[0])+', '+(DIR(a[1])<0?'-':'')+MSP(a[0])+')',run:(a,S)=>{MOT(S,a[0]).spin=DIR(a[1])}},
+    {t:'[A v] stop motor',c:'motors',py:a=>'motor.stop(port.'+portOf(a[0])+')',run:(a,S)=>{MOT(S,a[0]).spin=0}},
+    {t:'[A v] set speed to (75) %',c:'motors',py:(a,P)=>'motor_speed[port.'+portOf(a[0])+'] = '+pmi(P(a[1]),10)+'  # '+P(a[1])+' % → độ/giây',run:(a,S)=>{MOT(S,a[0]).sp=S.n(a[1])}},
+    {t:'([A v] position)',c:'motors',r:'r',py:a=>'motor.absolute_position(port.'+portOf(a[0])+')',val:(a,S)=>Math.round(((MOT(S,a[0]).pos%360)+360)%360)},
+    {t:'([A v] speed)',c:'motors',r:'r',py:a=>'motor.velocity(port.'+portOf(a[0])+') / 10',val:(a,S)=>{const m=MOT(S,a[0]);return m.spin*m.sp}},
+    /* Động cơ mở rộng (More Motors) */
+    {t:'[A v] go to relative position (0) at (100) % speed',c:'motors',py:(a,P)=>'await motor.run_to_relative_position(port.'+portOf(a[0])+', '+P(a[1])+', '+pmi(P(a[2]),10)+')',run:(a,S)=>{const m=MOT(S,a[0]),d=S.n(a[1])-m.rel;m.rel+=d;m.pos+=d}},
+    {t:'[A v] set relative position to (0)',c:'motors',py:(a,P)=>'motor.reset_relative_position(port.'+portOf(a[0])+', '+P(a[1])+')',run:(a,S)=>{MOT(S,a[0]).rel=S.n(a[1])}},
+    {t:'([A v] relative position)',c:'motors',r:'r',py:a=>'motor.relative_position(port.'+portOf(a[0])+')',val:(a,S)=>Math.round(MOT(S,a[0]).rel)},
+    {t:'[A v] start motor at (100) % power',c:'motors',py:(a,P)=>'motor.set_duty_cycle(port.'+portOf(a[0])+', '+pmi(P(a[1]),100)+')',run:(a,S)=>{const m=MOT(S,a[0]),p=S.n(a[1]);m.sp=Math.abs(p);m.spin=Math.sign(p)}},
+    {t:'([A v] power)',c:'motors',r:'r',py:a=>'motor.get_duty_cycle(port.'+portOf(a[0])+') / 100',val:(a,S)=>{const m=MOT(S,a[0]);return m.spin*m.sp}},
+    {t:'[A v] set motors to [brake v] at stop',c:'motors',py:a=>'# động cơ '+portOf(a[0])+' dừng kiểu '+a[1]+': thêm stop=motor.'+(/hold/i.test(a[1])?'HOLD':/coast/i.test(a[1])?'COAST':'BRAKE')+' vào các lệnh chạy động cơ'},
+    {t:'[A v] set acceleration to [medium v]',c:'motors',py:a=>'# gia tốc động cơ '+portOf(a[0])+': '+a[1]+' (thêm acceleration=… vào các lệnh chạy động cơ)'},
+    /* Di chuyển */
+    {t:'move [forward v] for (10) [cm v]',c:'move',py:(a,P)=>/sec/i.test(a[2])?'await motor_pair.move_for_time(motor_pair.PAIR_1, '+pmi(P(a[1]),1000)+', 0, velocity='+(DIR(a[0])<0?'-':'')+'move_speed)':'await motor_pair.move_for_degrees(motor_pair.PAIR_1, '+movDeg(a[1],a[2],DIR(a[0]),P)+', 0, '+MV+')',run:(a,S)=>S.go(toCm(S.n(a[1]),a[2],S)*DIR(a[0]))},
+    {t:'start moving [forward v]',c:'move',py:a=>'motor_pair.move(motor_pair.PAIR_1, 0, velocity='+(DIR(a[0])<0?'-':'')+'move_speed)',run:(a,S)=>{S.mv={k:'d',s:DIR(a[0]),st:0}}},
+    {t:'move (right: 30) for (10) [rotations v]',c:'move',py:(a,P)=>/sec/i.test(a[2])?'await motor_pair.move_for_time(motor_pair.PAIR_1, '+pmi(P(a[1]),1000)+', '+steerPy(a[0],P)+', '+MV+')':'await motor_pair.move_for_degrees(motor_pair.PAIR_1, '+movDeg(a[1],a[2],1,P)+', '+steerPy(a[0],P)+', '+MV+')',run:(a,S)=>S.steer(/left|right/i.test(a[0])?steerOf(a[0]):S.n(a[0]),toCm(S.n(a[1]),a[2],S))},
+    {t:'start moving (right: 30)',c:'move',py:(a,P)=>'motor_pair.move(motor_pair.PAIR_1, '+steerPy(a[0],P)+', '+MV+')',run:(a,S)=>{S.mv={k:'d',s:1,st:/left|right/i.test(a[0])?steerOf(a[0]):S.n(a[0])}}},
+    {t:'stop moving',c:'move',py:()=>'motor_pair.stop(motor_pair.PAIR_1)',run:(a,S)=>{S.mv=null}},
+    {t:'set movement speed to (50) %',c:'move',py:(a,P)=>'move_speed = '+pmi(P(a[0]),10)+'  # '+P(a[0])+' % → độ/giây',run:(a,S)=>{S.speed=S.n(a[0])}},
+    {t:'set movement motors to [A+B v]',c:'move',py:a=>'motor_pair.pair(motor_pair.PAIR_1, port.'+portOf(String(a[0]).split('+')[0])+', port.'+(portOf(String(a[0]).split('+')[1])||'B')+')'},
+    {t:'set 1 motor rotation to (17.5) [cm v] moved',c:'move',py:(a,P)=>'cm_per_rotation = '+(/inch/i.test(a[1])?pm(P(a[0]),2.54):P(a[0])),run:(a,S)=>{S.cmRot=/inch/i.test(a[1])?S.n(a[0])*2.54:S.n(a[0])}},
+    /* Di chuyển mở rộng (More Movement) */
+    {t:'start moving at (50) (50) % speed',c:'move',py:(a,P)=>'motor_pair.move_tank(motor_pair.PAIR_1, '+pmi(P(a[0]),10)+', '+pmi(P(a[1]),10)+')',run:(a,S)=>{S.mv={k:'tk',l:S.n(a[0]),r:S.n(a[1])}}},
+    {t:'set movement motors to [brake v] at stop',c:'move',py:a=>'# cặp động cơ dừng kiểu '+a[0]+': thêm stop=motor.'+(/hold/i.test(a[0])?'HOLD':/coast/i.test(a[0])?'COAST':'BRAKE')+' vào các lệnh di chuyển'},
+    {t:'set movement acceleration to [medium v]',c:'move',py:a=>'# gia tốc di chuyển: '+a[0]+' (thêm acceleration=… vào các lệnh di chuyển)'},
+    /* Đèn: ma trận 5x5 trên Hub */
+    {t:'turn on [heart v] for (2) seconds',c:'light',py:(a,P)=>'light_matrix.show_image(light_matrix.IMAGE_'+UP(a[0])+')\nawait runloop.sleep_ms('+pmi(P(a[1]),1000)+')\nlight_matrix.clear()',run:(a,S)=>{S.scr('['+a[0]+']');S.t+=S.n(a[1]);S.scr('')}},
+    {t:'turn on [heart v]',c:'light',py:a=>'light_matrix.show_image(light_matrix.IMAGE_'+UP(a[0])+')',run:(a,S)=>{S.scr('['+a[0]+']')}},
+    {t:'write [Hello]',c:'light',py:(a,P)=>'await light_matrix.write(str('+P(a[0])+'))',run:(a,S)=>{S.scr(String(S.ev(a[0])))}},
+    {t:'turn off pixels',c:'light',py:()=>'light_matrix.clear()',run:(a,S)=>{S.scr('')}},
+    {t:'set pixel brightness to (75) %',c:'light',py:(a,P)=>'pixel_brightness = '+P(a[0])+'  # dùng làm intensity cho write, set_pixel'},
+    {t:'set pixel at (1) , (1) to (100) %',c:'light',py:(a,P)=>'light_matrix.set_pixel('+P(a[0])+' - 1, '+P(a[1])+' - 1, '+P(a[2])+')'},
+    {t:'rotate [clockwise v]',c:'light',py:a=>'light_matrix.set_orientation((light_matrix.get_orientation() '+(DIR(a[0])<0?'+ 3':'+ 1')+') % 4)'},
+    {t:'set orientation to [upright v]',c:'light',py:a=>'light_matrix.set_orientation(orientation.'+(/upright|^up$/i.test(a[0])?'UP':/down/i.test(a[0])?'DOWN':/left/i.test(a[0])?'LEFT':/right/i.test(a[0])?'RIGHT':'UP')+')'},
+    /* Đèn: ma trận màu 3x3 cắm vào cổng */
+    {t:'[A v] turn on [yellow v] for (2) seconds',c:'light',py:(a,P)=>'color_matrix.show(port.'+portOf(a[0])+', [(color.'+SCOL(a[1])+', 10)] * 9)\nawait runloop.sleep_ms('+pmi(P(a[2]),1000)+')\ncolor_matrix.clear(port.'+portOf(a[0])+')',run:(a,S)=>{S.t+=S.n(a[2])}},
+    {t:'[A v] turn on [yellow v]',c:'light',py:a=>'color_matrix.show(port.'+portOf(a[0])+', [(color.'+SCOL(a[1])+', 10)] * 9)'},
+    {t:'[A v] turn off pixels',c:'light',py:a=>'color_matrix.clear(port.'+portOf(a[0])+')'},
+    {t:'[A v] set pixel brightness to (75) %',c:'light',py:(a,P)=>'# độ sáng ma trận màu '+portOf(a[0])+': '+P(a[1])+' %'},
+    {t:'[A v] set pixel at (1) , (1) to [red v] at (100) %',c:'light',py:(a,P)=>'color_matrix.set_pixel(port.'+portOf(a[0])+', '+P(a[1])+' - 1, '+P(a[2])+' - 1, (color.'+SCOL(a[3])+', '+pmi(P(a[4]),.1)+'))'},
+    {t:'[A v] rotate [clockwise v]',c:'light',py:a=>'# xoay hình trên ma trận màu '+portOf(a[0])+' '+a[1]},
+    {t:'[A v] set orientation to [upright v]',c:'light',py:a=>'# hướng ma trận màu '+portOf(a[0])+': '+a[1]},
+    {t:'set Power Button light to [red v]',c:'light',py:a=>'light.color(light.POWER, color.'+SCOL(a[0])+')'},
+    {t:'[A v] light up [100 100 100 100 v]',c:'light',py:a=>{const n=(String(a[1]).match(/\d+/g)||['100']).map(Number);while(n.length<4)n.push(n[n.length-1]);return'distance_sensor.show(port.'+portOf(a[0])+', ['+n.slice(0,4).join(', ')+'])'}},
+    /* Âm thanh */
+    {t:'play sound [Cat Meow 1 v] until done',c:'sound',py:a=>'await app_sound.play('+JSON.stringify(a[0])+')',run:(a,S)=>{S.t+=1}},
+    {t:'start sound [Cat Meow 1 v]',c:'sound',py:a=>'app_sound.play('+JSON.stringify(a[0])+')'},
+    {t:'play beep (60) for (0.2) seconds',c:'sound',py:(a,P)=>'await sound.beep('+(isFinite(+a[0])?midi(+a[0]):'int(440 * 2 ** (('+P(a[0])+' - 69) / 12))')+', '+pmi(P(a[1]),1000)+')',run:(a,S)=>{S.t+=S.n(a[1])}},
+    {t:'start playing beep (60)',c:'sound',py:(a,P)=>'sound.beep('+(isFinite(+a[0])?midi(+a[0]):'int(440 * 2 ** (('+P(a[0])+' - 69) / 12))')+', 60000)'},
+    {t:'stop all sounds',c:'sound',py:()=>'sound.stop()\napp_sound.stop()'},
+    {t:'change [pitch v] effect by (10)',c:'sound',py:(a,P)=>(/pan/i.test(a[0])?'sound_pan':'sound_pitch')+' += '+P(a[1])+'\napp_sound.set_attributes(100, sound_pitch, sound_pan)'},
+    {t:'set [pitch v] effect to (100)',c:'sound',py:(a,P)=>(/pan/i.test(a[0])?'sound_pan':'sound_pitch')+' = '+P(a[1])+'\napp_sound.set_attributes(100, sound_pitch, sound_pan)'},
+    {t:'clear sound effects',c:'sound',py:()=>'sound_pitch = 0\nsound_pan = 0\napp_sound.set_attributes(100, 0, 0)'},
+    {t:'change volume by (-10)',c:'sound',py:(a,P)=>'volume = max(0, min(100, volume + '+P(a[0])+'))\nsound.volume(volume)',run:(a,S)=>{S.vol=Math.max(0,Math.min(100,S.vol+S.n(a[0])))}},
+    {t:'set volume to (100) %',c:'sound',py:(a,P)=>'volume = '+P(a[0])+'\nsound.volume(volume)',run:(a,S)=>{S.vol=Math.max(0,Math.min(100,S.n(a[0])))}},
+    {t:'(volume)',c:'sound',r:'r',py:()=>'volume',val:(a,S)=>S.vol},
+    /* Cảm biến */
+    {t:'<[A v] is color [red v] ?>',c:'sensors',r:'b',py:a=>'color_sensor.color(port.'+portOf(a[0])+') is color.'+SCOL(a[1]),val:(a,S)=>S.color()===String(a[1]).toLowerCase()},
+    {t:'([A v] color)',c:'sensors',r:'r',py:a=>'color_sensor.color(port.'+portOf(a[0])+')',val:(a,S)=>S.color()},
+    {t:'<[A v] reflection [< v] (50) % ?>',c:'sensors',r:'b',py:(a,P)=>'color_sensor.reflection(port.'+portOf(a[0])+') '+(/>|great/i.test(a[1])?'>':/=|equal/i.test(a[1])?'==':'<')+' '+P(a[2]),val:(a,S)=>{const r=REFL[S.color()]||50,v=S.n(a[2]);return/>|great/i.test(a[1])?r>v:/=|equal/i.test(a[1])?r===v:r<v}},
+    {t:'([A v] reflected light)',c:'sensors',r:'r',py:a=>'color_sensor.reflection(port.'+portOf(a[0])+')',val:(a,S)=>REFL[S.color()]||50},
+    {t:'<[A v] is [pressed v] ?>',c:'sensors',r:'b',py:a=>/hard/i.test(a[1])?'force_sensor.force(port.'+portOf(a[0])+') > 50':(/release/i.test(a[1])?'not ':'')+'force_sensor.pressed(port.'+portOf(a[0])+')',val:(a,S)=>(S.dist()<1.5)!==/release/i.test(a[1])},
+    {t:'([A v] pressure in [% v])',c:'sensors',r:'r',py:a=>'force_sensor.force(port.'+portOf(a[0])+')'+(/%/.test(a[1])?'':' / 10'),val:(a,S)=>S.dist()<1.5?(/%/.test(a[1])?100:10):0},
+    {t:'<[A v] is [closer than v] (15) [% v] ?>',c:'sensors',r:'b',py:(a,P)=>'distance_sensor.distance(port.'+portOf(a[0])+')'+sdist(a[3])+' '+(/far/i.test(a[1])?'>':/exact/i.test(a[1])?'==':'<')+' '+P(a[2]),
+      val:(a,S)=>{const d=S.dist(),v=toCm(S.n(a[2]),a[3]);return/far/i.test(a[1])?d>v:/exact/i.test(a[1])?Math.round(d)===Math.round(v):d<v}},
+    {t:'([A v] distance in [% v])',c:'sensors',r:'r',py:a=>'distance_sensor.distance(port.'+portOf(a[0])+')'+sdist(a[1]),val:(a,S)=>{const d=S.dist();return/mm/.test(a[1])?d*10:/inch/i.test(a[1])?Math.round(d/2.54*10)/10:/%/.test(a[1])?Math.min(100,Math.round(d/2)):d}},
+    {t:'<Is tilted [any v] ?>',c:'sensors',r:'b',py:()=>'max(abs(motion_sensor.tilt_angles()[1]), abs(motion_sensor.tilt_angles()[2])) > 150',val:()=>false},
+    {t:'<is [front v] up?>',c:'sensors',r:'b',py:a=>'motion_sensor.up_face() == motion_sensor.'+UP(a[0]),val:a=>/top/i.test(a[0])},
+    {t:'<is [shaken v] ?>',c:'sensors',r:'b',py:a=>'motion_sensor.gesture() == motion_sensor.'+(/tap/i.test(a[0])?'TAPPED':/fall/i.test(a[0])?'FALLING':'SHAKEN'),val:()=>false},
+    {t:'([pitch v] angle)',c:'sensors',r:'r',py:a=>'motion_sensor.tilt_angles()['+(/pitch/i.test(a[0])?1:/roll/i.test(a[0])?2:0)+'] / 10',val:(a,S)=>/yaw/i.test(a[0])?S.yaw():0},
+    {t:'set yaw angle to 0',c:'sensors',py:()=>'motion_sensor.reset_yaw(0)',run:(a,S)=>{S.yawOff-=S.yaw()}},
+    {t:'<is [left v] button [pressed v] ?>',c:'sensors',r:'b',py:a=>'button.pressed(button.'+UP(a[0])+')'+(/release/i.test(a[1])?' == 0':' > 0'),val:a=>/release/i.test(a[1])},
+    {t:'(timer)',c:'sensors',r:'r',py:()=>'(time.ticks_ms() - t0) / 1000',val:(a,S)=>Math.round((S.t-S.tz)*10)/10},
+    {t:'reset timer',c:'sensors',py:()=>'t0 = time.ticks_ms()',run:(a,S)=>{S.tz=S.t}},
+    /* Cảm biến mở rộng (More Sensors) */
+    {t:'([A v] raw [red v])',c:'sensors',r:'r',py:a=>'color_sensor.rgbi(port.'+portOf(a[0])+')['+(/green/i.test(a[1])?1:/blue/i.test(a[1])?2:0)+']',val:(a,S)=>{const c=S.color(),k=/green/i.test(a[1])?'green':/blue/i.test(a[1])?'blue':'red';return c==='white'?1000:c==='black'?30:c===k?900:c==='yellow'&&k!=='blue'?900:100}},
+    {t:'(acceleration [x v])',c:'sensors',r:'r',py:a=>'motion_sensor.acceleration(False)['+AX(a[0])+']',val:a=>/z/i.test(a[0])?1000:0},
+    {t:'(angular velocity [x v])',c:'sensors',r:'r',py:a=>'motion_sensor.angular_velocity(False)['+AX(a[0])+'] / 10',val:(a,S)=>/z/i.test(a[0])&&S.mv&&S.mv.k==='t'?S.w()*S.mv.s:0},
+    {t:'(orientation)',c:'sensors',r:'r',py:()=>'motion_sensor.up_face()',val:()=>0},
+    {t:'(gesture)',c:'sensors',r:'r',py:()=>'motion_sensor.gesture()',val:()=>-1},
+    {t:'set sensor orientation to [front v]',c:'sensors',py:a=>'motion_sensor.set_yaw_face(motion_sensor.'+UP(a[0])+')'}],
+  vex:[
+    /* Sự kiện */
+    {t:'when started',c:'events',hat:1,start:1},
+    {t:'when [Controller1 v] button [A v] [pressed v]',c:'events',hat:1,reg:(a,f)=>pyv(a[0])+'.button'+String(a[1]).replace(/\s+/g,'')+'.'+(/release/i.test(a[2])?'released':'pressed')+'('+f+')'},
+    {t:'when [Controller1 v] axis [1 v] is changed',c:'events',hat:1,reg:(a,f)=>pyv(a[0])+'.axis'+a[1]+'.changed('+f+')'},
+    {t:'when [Brain v] screen [pressed v]',c:'events',hat:1,reg:(a,f)=>'brain.screen.'+(/release/i.test(a[1])?'released':'pressed')+'('+f+')'},
+    {t:'when [BumperA v] [pressed v]',c:'events',hat:1,reg:(a,f)=>pyv(a[0])+'.'+(/release/i.test(a[1])?'released':'pressed')+'('+f+')'},
+    {t:'when [Optical1 v] [detects an object v]',c:'events',hat:1,reg:(a,f)=>pyv(a[0])+'.'+(/lost/i.test(a[1])?'object_lost':'object_detected')+'('+f+')'},
+    {t:'when timer > (1)',c:'events',hat:1,reg:(a,f)=>'brain.timer.event('+f+', '+pm(a[0],1000)+')'},
+    /* Điều khiển (khối đặc biệt của VEXcode) */
+    {t:'break',c:'ctl',ann:'cap control',py:()=>'break',run:(a,S)=>{S.brk=true}},
+    {t:'stop project',c:'ctl',ann:'cap control',py:()=>'brain.program_stop()',run:(a,S)=>{S.halt=true}},
+    /* Drivetrain */
+    {t:'drive [forward v]',c:'drive',py:a=>'drivetrain.drive('+FR(a[0])+')',run:(a,S)=>{S.mv={k:'d',s:DIR(a[0]),st:0}}},
+    {t:'drive [forward v] for (200) [mm v]',c:'drive',py:(a,P)=>'drivetrain.drive_for('+FR(a[0])+', '+P(a[1])+', '+(/inch/i.test(a[2])?'INCHES':'MM')+')',run:(a,S)=>S.go(toCm(S.n(a[1]),a[2]||'mm')*DIR(a[0]))},
+    {t:'turn [right v]',c:'drive',py:a=>'drivetrain.turn('+LR(a[0])+')',run:(a,S)=>{S.mv={k:'t',s:DIR(a[0])}}},
+    {t:'turn [right v] for (90) degrees',c:'drive',py:(a,P)=>'drivetrain.turn_for('+LR(a[0])+', '+P(a[1])+', DEGREES)',run:(a,S)=>S.rot(S.n(a[1])*DIR(a[0]))},
+    {t:'turn to heading (90) degrees',c:'drive',py:(a,P)=>'drivetrain.turn_to_heading('+P(a[0])+', DEGREES)',run:(a,S)=>S.rot(((S.n(a[0])-S.head())%360+540)%360-180)},
+    {t:'turn to rotation (90) degrees',c:'drive',py:(a,P)=>'drivetrain.turn_to_rotation('+P(a[0])+', DEGREES)',run:(a,S)=>S.rot(S.n(a[0])-S.rotv())},
+    {t:'stop driving',c:'drive',py:()=>'drivetrain.stop()',run:(a,S)=>{S.mv=null}},
+    {t:'set drive velocity to (50) %',c:'drive',py:(a,P)=>'drivetrain.set_drive_velocity('+P(a[0])+', PERCENT)',run:(a,S)=>{S.speed=S.n(a[0])}},
+    {t:'set turn velocity to (50) %',c:'drive',py:(a,P)=>'drivetrain.set_turn_velocity('+P(a[0])+', PERCENT)',run:(a,S)=>{S.tspeed=S.n(a[0])}},
+    {t:'set drive stopping to [brake v]',c:'drive',py:a=>'drivetrain.set_stopping('+UP(a[0])+')'},
+    {t:'set drive timeout to (1) seconds',c:'drive',py:(a,P)=>'drivetrain.set_timeout('+P(a[0])+', SECONDS)'},
+    {t:'set drive heading to (0) degrees',c:'drive',py:(a,P)=>'drivetrain.set_heading('+P(a[0])+', DEGREES)',run:(a,S)=>{S.hdOff+=S.n(a[0])-S.head()}},
+    {t:'set drive rotation to (0) degrees',c:'drive',py:(a,P)=>'drivetrain.set_rotation('+P(a[0])+', DEGREES)',run:(a,S)=>{S.rotOff+=S.n(a[0])-S.rotv()}},
+    {t:'calibrate drivetrain',c:'drive',py:()=>'calibrate_drivetrain()',run:(a,S)=>{S.t+=2}},
+    {t:'<drive is done?>',c:'drive',r:'b',py:()=>'drivetrain.is_done()',val:(a,S)=>!S.mv},
+    {t:'<drive is moving?>',c:'drive',r:'b',py:()=>'drivetrain.is_moving()',val:(a,S)=>!!S.mv},
+    {t:'(drive heading in degrees)',c:'drive',r:'r',py:()=>'drivetrain.heading(DEGREES)',val:(a,S)=>Math.round(S.head())},
+    {t:'(drive rotation in degrees)',c:'drive',r:'r',py:()=>'drivetrain.rotation(DEGREES)',val:(a,S)=>Math.round(S.rotv())},
+    {t:'(drive velocity in [% v])',c:'drive',r:'r',py:a=>'drivetrain.velocity('+(/rpm/i.test(a[0])?'RPM':'PERCENT')+')',val:(a,S)=>S.mv?S.speed:0},
+    {t:'(drive current in amps)',c:'drive',r:'r',py:()=>'drivetrain.current()',val:(a,S)=>S.mv?1:0},
+    {t:'(drive power in watts)',c:'drive',r:'r',py:()=>'drivetrain.power()',val:(a,S)=>S.mv?5:0},
+    {t:'(drive torque in [Nm v])',c:'drive',r:'r',py:()=>'drivetrain.torque()',val:()=>0},
+    {t:'(drive efficiency in %)',c:'drive',r:'r',py:()=>'drivetrain.efficiency()',val:(a,S)=>S.mv?50:0},
+    {t:'(drive temperature in %)',c:'drive',r:'r',py:()=>'drivetrain.temperature(PERCENT)',val:()=>30},
+    /* Động cơ (Motion) */
+    {t:'spin [Motor1 v] [forward v]',c:'motion',py:a=>pyv(a[0])+'.spin('+FR(a[1])+')',run:(a,S)=>{MOT(S,a[0]).spin=DIR(a[1])}},
+    {t:'spin [Motor1 v] [forward v] for (90) [degrees v]',c:'motion',py:(a,P)=>pyv(a[0])+'.spin_for('+FR(a[1])+', '+P(a[2])+', '+(/turn/i.test(a[3])?'TURNS':'DEGREES')+')',run:(a,S)=>{const m=MOT(S,a[0]),d=S.n(a[2])*(/turn/i.test(a[3])?360:1);m.pos+=DIR(a[1])*d;S.t+=Math.abs(d)/(m.sp*6)}},
+    {t:'spin [Motor1 v] to position (90) [degrees v]',c:'motion',py:(a,P)=>pyv(a[0])+'.spin_to_position('+P(a[1])+', '+(/turn/i.test(a[2])?'TURNS':'DEGREES')+')',run:(a,S)=>{MOT(S,a[0]).pos=S.n(a[1])*(/turn/i.test(a[2])?360:1)}},
+    {t:'spin [Motor1 v] [forward v] at (12) volts',c:'motion',py:(a,P)=>pyv(a[0])+'.spin('+FR(a[1])+', '+P(a[2])+', VOLT)',run:(a,S)=>{MOT(S,a[0]).spin=DIR(a[1])}},
+    {t:'stop [Motor1 v]',c:'motion',py:a=>pyv(a[0])+'.stop()',run:(a,S)=>{MOT(S,a[0]).spin=0}},
+    {t:'set [Motor1 v] position to (0) [degrees v]',c:'motion',py:(a,P)=>pyv(a[0])+'.set_position('+P(a[1])+', '+(/turn/i.test(a[2])?'TURNS':'DEGREES')+')',run:(a,S)=>{MOT(S,a[0]).pos=S.n(a[1])*(/turn/i.test(a[2])?360:1)}},
+    {t:'set [Motor1 v] velocity to (50) %',c:'motion',py:(a,P)=>pyv(a[0])+'.set_velocity('+P(a[1])+', PERCENT)',run:(a,S)=>{MOT(S,a[0]).sp=S.n(a[1])}},
+    {t:'set [Motor1 v] stopping to [brake v]',c:'motion',py:a=>pyv(a[0])+'.set_stopping('+UP(a[1])+')'},
+    {t:'set [Motor1 v] max torque to (50) %',c:'motion',py:(a,P)=>pyv(a[0])+'.set_max_torque('+P(a[1])+', PERCENT)'},
+    {t:'set [Motor1 v] timeout to (1) seconds',c:'motion',py:(a,P)=>pyv(a[0])+'.set_timeout('+P(a[1])+', SECONDS)'},
+    {t:'<[Motor1 v] is done?>',c:'motion',r:'b',py:a=>pyv(a[0])+'.is_done()',val:(a,S)=>!MOT(S,a[0]).spin},
+    {t:'<[Motor1 v] is spinning?>',c:'motion',r:'b',py:a=>pyv(a[0])+'.is_spinning()',val:(a,S)=>!!MOT(S,a[0]).spin},
+    {t:'([Motor1 v] position in [degrees v])',c:'motion',r:'r',py:a=>pyv(a[0])+'.position('+(/turn/i.test(a[1])?'TURNS':'DEGREES')+')',val:(a,S)=>{const p=MOT(S,a[0]).pos;return Math.round((/turn/i.test(a[1])?p/360:p)*100)/100}},
+    {t:'([Motor1 v] velocity in [% v])',c:'motion',r:'r',py:a=>pyv(a[0])+'.velocity('+(/rpm/i.test(a[1])?'RPM':'PERCENT')+')',val:(a,S)=>{const m=MOT(S,a[0]);return m.spin*m.sp}},
+    {t:'([Motor1 v] current in amps)',c:'motion',r:'r',py:a=>pyv(a[0])+'.current()',val:(a,S)=>MOT(S,a[0]).spin?1:0},
+    {t:'([Motor1 v] power in watts)',c:'motion',r:'r',py:a=>pyv(a[0])+'.power()',val:(a,S)=>MOT(S,a[0]).spin?3:0},
+    {t:'([Motor1 v] torque in [Nm v])',c:'motion',r:'r',py:a=>pyv(a[0])+'.torque()',val:()=>0},
+    {t:'([Motor1 v] efficiency in %)',c:'motion',r:'r',py:a=>pyv(a[0])+'.efficiency()',val:(a,S)=>MOT(S,a[0]).spin?50:0},
+    {t:'([Motor1 v] temperature in %)',c:'motion',r:'r',py:a=>pyv(a[0])+'.temperature(PERCENT)',val:()=>30},
+    /* Màn hình Brain (Looks) */
+    {t:'print [Hello] on [Brain v] and set cursor to next row',c:'looks',py:(a,P)=>(/console/i.test(a[1])?'print('+P(a[0])+')':'brain.screen.print('+P(a[0])+')\nbrain.screen.next_row()'),run:(a,S)=>{S.prn(S.ev(a[0]),a[1]);S.nl()}},
+    {t:'print [Hello] on [Brain v]',c:'looks',py:(a,P)=>/console/i.test(a[1])?'print('+P(a[0])+', end="")':'brain.screen.print('+P(a[0])+')',run:(a,S)=>S.prn(S.ev(a[0]),a[1])},
+    {t:'set cursor to row (1) column (1) on [Brain v]',c:'looks',py:(a,P)=>'brain.screen.set_cursor('+P(a[0])+', '+P(a[1])+')',run:(a,S)=>{S.row=Math.max(0,S.n(a[0])-1);S.rows[S.row]=S.rows[S.row]||'';S.scr()}},
+    {t:'set cursor to next row on [Brain v]',c:'looks',py:a=>/console/i.test(a[0])?'print()':'brain.screen.next_row()',run:(a,S)=>S.nl()},
+    {t:'clear row (1) on [Brain v]',c:'looks',py:(a,P)=>'brain.screen.clear_row('+P(a[0])+')',run:(a,S)=>{S.rows[S.n(a[0])-1]='';S.scr()}},
+    {t:'([Brain v] cursor column)',c:'looks',r:'r',py:()=>'brain.screen.column()',val:(a,S)=>(S.rows[S.row]||'').length+1},
+    {t:'([Brain v] cursor row)',c:'looks',r:'r',py:()=>'brain.screen.row()',val:(a,S)=>S.row+1},
+    {t:'clear screen on [Brain v]',c:'looks',py:a=>/console/i.test(a[0])?'# xoá console':'brain.screen.clear_screen()',run:(a,S)=>{S.rows=[];S.row=0;S.scr()}},
+    {t:'clear all rows on [Brain v]',hide:1,c:'looks',py:()=>'brain.screen.clear_screen()',run:(a,S)=>{S.rows=[];S.row=0;S.scr()}},
+    {t:'set font to [mono m v] on [Brain v]',c:'looks',py:a=>'brain.screen.set_font(FontType.'+UP(a[0]).replace(/^(MONO|PROP)_?([SMLX]+)$/,(m,f,s)=>f+({S:15,M:20,L:30,XL:40,XXL:60}[s]||20))+')'},
+    {t:'set print precision to [0.1 v] on [Brain v]',c:'looks',py:a=>'# số chữ số thập phân khi in: '+a[0],run:(a,S)=>{S.prec=String(a[0]).split('.')[1]?String(a[0]).split('.')[1].length:0}},
+    {t:'set pen width to (1) on [Brain v]',c:'looks',py:(a,P)=>'brain.screen.set_pen_width('+P(a[0])+')'},
+    {t:'set pen / font color to [red v] on [Brain v]',c:'looks',py:a=>'brain.screen.set_pen_color(Color.'+UP(a[0])+')'},
+    {t:'set fill color to [red v] on [Brain v]',c:'looks',py:a=>'brain.screen.set_fill_color(Color.'+UP(a[0])+')'},
+    {t:'draw pixel (0) (0) on [Brain v]',c:'looks',py:(a,P)=>'brain.screen.draw_pixel('+P(a[0])+', '+P(a[1])+')'},
+    {t:'draw line (0) (0) (10) (10) on [Brain v]',c:'looks',py:(a,P)=>'brain.screen.draw_line('+[0,1,2,3].map(i=>P(a[i])).join(', ')+')',run:(a,S)=>S.prn('╱','')},
+    {t:'draw rectangle (0) (0) (10) (10) on [Brain v]',c:'looks',py:(a,P)=>'brain.screen.draw_rectangle('+[0,1,2,3].map(i=>P(a[i])).join(', ')+')',run:(a,S)=>S.prn('▭','')},
+    {t:'draw circle (0) (0) (10) on [Brain v]',c:'looks',py:(a,P)=>'brain.screen.draw_circle('+[0,1,2].map(i=>P(a[i])).join(', ')+')',run:(a,S)=>S.prn('◯','')},
+    {t:'<[Brain v] screen pressed?>',c:'looks',r:'b',py:()=>'brain.screen.pressing()',val:()=>false},
+    {t:'([Brain v] screen [x v] position)',c:'looks',r:'r',py:a=>'brain.screen.'+(/y/i.test(a[1])?'y':'x')+'_position()',val:()=>0},
+    /* Cảm biến (Sensing) */
+    {t:'reset timer',c:'sensing',py:()=>'brain.timer.clear()',run:(a,S)=>{S.tz=S.t}},
+    {t:'(timer in seconds)',c:'sensing',r:'r',py:()=>'brain.timer.time(SECONDS)',val:(a,S)=>Math.round((S.t-S.tz)*10)/10},
+    {t:'(battery capacity in %)',c:'sensing',r:'r',py:()=>'brain.battery.capacity()',val:()=>100},
+    {t:'(battery voltage in volts)',c:'sensing',r:'r',py:()=>'brain.battery.voltage()',val:()=>12.8},
+    {t:'(battery current in amps)',c:'sensing',r:'r',py:()=>'brain.battery.current()',val:(a,S)=>S.mv?2:.5},
+    {t:'<[Controller1 v] [A v] pressed?>',c:'sensing',r:'b',py:a=>pyv(a[0])+'.button'+String(a[1]).replace(/\s+/g,'')+'.pressing()',val:()=>false},
+    {t:'([Controller1 v] [1 v] position)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.axis'+a[1]+'.position()',val:()=>0},
+    {t:'<[BumperA v] pressed?>',c:'sensing',r:'b',py:a=>pyv(a[0])+'.pressing()',val:(a,S)=>S.dist()<1.5},
+    {t:'([Distance1 v] object distance in [mm v])',c:'sensing',r:'r',py:a=>pyv(a[0])+'.object_distance('+(/inch/i.test(a[1])?'INCHES':'MM')+')',val:(a,S)=>/inch/i.test(a[1])?Math.round(S.dist()/2.54*10)/10:S.dist()*10},
+    {t:'([Distance1 v] object velocity in m/s)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.object_velocity()',val:(a,S)=>S.mv&&S.mv.k==='d'?Math.round(S.v()*S.mv.s)/100:0},
+    {t:'<[Distance1 v] object size is [small v]?>',c:'sensing',r:'b',py:a=>pyv(a[0])+'.object_size() == ObjectSizeType.'+UP(a[1]),val:(a,S)=>S.dist()<200&&/medium/i.test(a[1])},
+    {t:'<[Distance1 v] found an object?>',c:'sensing',r:'b',py:a=>pyv(a[0])+(/optical/i.test(a[0])?'.is_near_object()':'.is_object_detected()'),val:(a,S)=>/optical/i.test(a[0])?S.dist()<5:S.dist()<200},
+    {t:'set [Optical1 v] light [on v]',c:'sensing',py:a=>pyv(a[0])+'.set_light(LedStateType.'+UP(a[1])+')'},
+    {t:'set [Optical1 v] light power to (50) %',c:'sensing',py:(a,P)=>pyv(a[0])+'.set_light_power('+P(a[1])+', PERCENT)'},
+    {t:'<[Optical1 v] found an object?>',c:'sensing',r:'b',py:a=>pyv(a[0])+'.is_near_object()',val:(a,S)=>S.dist()<5},
+    {t:'<[Optical1 v] detects [red v]?>',c:'sensing',r:'b',py:a=>pyv(a[0])+'.color() == Color.'+UP(a[1]),val:(a,S)=>S.color()===String(a[1]).toLowerCase()},
+    {t:'([Optical1 v] brightness in %)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.brightness()',val:(a,S)=>REFL[S.color()]||50},
+    {t:'([Optical1 v] hue in degrees)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.hue()',val:(a,S)=>HUE[S.color()]||0},
+    {t:'calibrate [Inertial1 v]',c:'sensing',py:a=>pyv(a[0])+'.calibrate()\nwhile '+pyv(a[0])+'.is_calibrating():\n    wait(50, MSEC)',run:(a,S)=>{S.t+=2}},
+    {t:'set [Inertial1 v] heading to (0) degrees',c:'sensing',py:(a,P)=>pyv(a[0])+'.set_heading('+P(a[1])+', DEGREES)',run:(a,S)=>{S.hdOff+=S.n(a[1])-S.head()}},
+    {t:'set [Inertial1 v] rotation to (0) degrees',c:'sensing',py:(a,P)=>pyv(a[0])+'.set_rotation('+P(a[1])+', DEGREES)',run:(a,S)=>{S.rotOff+=S.n(a[1])-S.rotv()}},
+    {t:'([Inertial1 v] heading in degrees)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.heading(DEGREES)',val:(a,S)=>Math.round(S.head())},
+    {t:'([Inertial1 v] rotation in degrees)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.rotation(DEGREES)',val:(a,S)=>Math.round(S.rotv())},
+    {t:'([Inertial1 v] acceleration of [x v] axis in g)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.acceleration('+UP(a[1])+'AXIS)',val:a=>/z/i.test(a[1])?-1:0},
+    {t:'([Inertial1 v] gyro rate of [z v] axis in dps)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.gyro_rate('+UP(a[1])+'AXIS, VelocityUnits.DPS)',val:(a,S)=>/z/i.test(a[1])&&S.mv&&S.mv.k==='t'?S.w()*S.mv.s:0},
+    {t:'([Inertial1 v] orientation of [roll v] in degrees)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.orientation('+UP(a[1])+', DEGREES)',val:(a,S)=>/yaw/i.test(a[1])?Math.round(S.head()):0},
+    {t:'set [Rotation1 v] position to (0) degrees',c:'sensing',py:(a,P)=>pyv(a[0])+'.set_position('+P(a[1])+', DEGREES)',run:(a,S)=>{MOT(S,a[0]).pos=S.n(a[1])}},
+    {t:'([Rotation1 v] angle in degrees)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.angle(DEGREES)',val:(a,S)=>Math.round(((MOT(S,a[0]).pos%360)+360)%360)},
+    {t:'([Rotation1 v] velocity in rpm)',c:'sensing',r:'r',py:a=>pyv(a[0])+'.velocity(RPM)',val:(a,S)=>{const m=MOT(S,a[0]);return m.spin*m.sp}}],
+  /* Scratch 3: sân khấu 480 × 360, gốc toạ độ ở giữa (mô phỏng chuyển toạ độ trong robotSteps) */
+  scratch:[
+    {t:'when flag clicked',hat:1,start:1},{t:'when green flag clicked',hat:1,start:1},
+    {t:'when [space v] key pressed',hat:1},{t:'when this sprite clicked',hat:1},{t:'when stage clicked',hat:1},{t:'when backdrop switches to [backdrop1 v]',hat:1},{t:'when [loudness v] > (10)',hat:1},{t:'when I start as a clone',hat:1},
+    /* Chuyển động */
+    {t:'move (10) steps',run:(a,S)=>S.go(S.n(a[0]))},
+    {t:'turn cw (15) degrees',run:(a,S)=>S.rot(S.n(a[0]))},{t:'turn right (15) degrees',run:(a,S)=>S.rot(S.n(a[0]))},
+    {t:'turn ccw (15) degrees',run:(a,S)=>S.rot(-S.n(a[0]))},{t:'turn left (15) degrees',run:(a,S)=>S.rot(-S.n(a[0]))},
+    {t:'go to x: (0) y: (0)',run:(a,S)=>S.goXY(S.n(a[0]),S.n(a[1]))},
+    {t:'go to [random position v]',run:(a,S)=>/random/i.test(a[0])?S.goXY(Math.round(S.rnd()*480-240),Math.round(S.rnd()*360-180)):S.goXY(0,0)},
+    {t:'glide (1) secs to x: (0) y: (0)',run:(a,S)=>{S.goXY(S.n(a[1]),S.n(a[2]));S.t+=S.n(a[0])}},
+    {t:'glide (1) secs to [random position v]',run:(a,S)=>{/random/i.test(a[1])?S.goXY(Math.round(S.rnd()*480-240),Math.round(S.rnd()*360-180)):S.goXY(0,0);S.t+=S.n(a[0])}},
+    {t:'point in direction (90)',run:(a,S)=>{S.h=S.n(a[0])-90}},
+    {t:'point towards [mouse-pointer v]',run:(a,S)=>{S.h=Math.atan2(180-S.y,240-S.x)*180/Math.PI}},
+    {t:'change x by (10)',run:(a,S)=>S.goXY(S.sx()+S.n(a[0]),S.sy())},{t:'set x to (0)',run:(a,S)=>S.goXY(S.n(a[0]),S.sy())},
+    {t:'change y by (10)',run:(a,S)=>S.goXY(S.sx(),S.sy()+S.n(a[0]))},{t:'set y to (0)',run:(a,S)=>S.goXY(S.sx(),S.n(a[0]))},
+    {t:'if on edge, bounce',run:(a,S)=>S.bounce()},
+    {t:'set rotation style [left-right v]',run:(a,S)=>{S.rs=String(a[0]).toLowerCase()}},
+    {t:'(x position)',r:'r',val:(a,S)=>Math.round(S.sx()*100)/100},{t:'(y position)',r:'r',val:(a,S)=>Math.round(S.sy()*100)/100},{t:'(direction)',r:'r',val:(a,S)=>S.dir()},
+    /* Hiển thị */
+    {t:'say [Hello!] for (2) seconds',run:(a,S)=>S.bub('say',S.ev(a[0]),S.n(a[1]))},{t:'say [Hello!]',run:(a,S)=>S.bub('say',S.ev(a[0]))},
+    {t:'think [Hmm...] for (2) seconds',run:(a,S)=>S.bub('think',S.ev(a[0]),S.n(a[1]))},{t:'think [Hmm...]',run:(a,S)=>S.bub('think',S.ev(a[0]))},
+    {t:'switch costume to [costume2 v]',run:(a,S)=>{const m=String(S.ev(a[0])).match(/\d+/);S.costume=m?+m[0]:1}},{t:'next costume',run:(a,S)=>{S.costume=S.costume%2+1}},
+    {t:'switch backdrop to [backdrop1 v] and wait',run:(a,S)=>{const m=String(a[0]).match(/\d+/);S.backdrop=m?+m[0]:1}},{t:'switch backdrop to [backdrop1 v]',run:(a,S)=>{const m=String(a[0]).match(/\d+/);S.backdrop=m?+m[0]:1}},{t:'next backdrop',run:(a,S)=>{S.backdrop++}},
+    {t:'change size by (10)',run:(a,S)=>{S.size=Math.max(5,S.size+S.n(a[0]))}},{t:'set size to (100) %',run:(a,S)=>{S.size=Math.max(5,S.n(a[0]))}},
+    {t:'change [color v] effect by (25)',run:(a,S)=>{const k=String(a[0]).toLowerCase();S.fx[k]=(S.fx[k]||0)+S.n(a[1])}},{t:'set [color v] effect to (0)',run:(a,S)=>{S.fx[String(a[0]).toLowerCase()]=S.n(a[1])}},
+    {t:'clear graphic effects',run:(a,S)=>{S.fx={}}},{t:'show',run:(a,S)=>{S.hidden=false}},{t:'hide',run:(a,S)=>{S.hidden=true}},
+    {t:'go to [front v] layer',run:()=>{}},{t:'go [forward v] (1) layers',run:()=>{}},
+    {t:'(costume [number v])',r:'r',val:(a,S)=>/name/i.test(a[0])?'costume'+S.costume:S.costume},{t:'(backdrop [number v])',r:'r',val:(a,S)=>/name/i.test(a[0])?'backdrop'+S.backdrop:S.backdrop},{t:'(size)',r:'r',val:(a,S)=>S.size},
+    /* Âm thanh */
+    {t:'play sound [Meow v] until done',run:(a,S)=>{S.t+=1}},{t:'start sound [Meow v]',run:()=>{}},{t:'stop all sounds',run:()=>{}},
+    {t:'change [pitch v] effect by (10)',run:()=>{}},{t:'set [pitch v] effect to (100)',run:()=>{}},{t:'clear sound effects',run:()=>{}},
+    {t:'change volume by (-10)',run:(a,S)=>{S.vol=Math.max(0,Math.min(100,S.vol+S.n(a[0])))}},{t:'set volume to (100) %',run:(a,S)=>{S.vol=Math.max(0,Math.min(100,S.n(a[0])))}},{t:'(volume)',r:'r',val:(a,S)=>S.vol},
+    /* Cảm biến */
+    {t:'<touching [mouse-pointer v] ?>',r:'b',val:(a,S)=>/edge|cạnh/i.test(a[0])?S.atEdge():/mouse|chuột/i.test(a[0])?Math.hypot(S.sx(),S.sy())<S.rad():false},
+    {t:'<touching color [#ff0000] ?>',r:'b',val:(a,S)=>colNear(S.color(),a[0])},
+    {t:'<color [#ff0000] is touching [#00ff00] ?>',r:'b',val:(a,S)=>colNear(S.color(),a[1])},
+    {t:'(distance to [mouse-pointer v])',r:'r',val:(a,S)=>Math.round(Math.hypot(S.sx(),S.sy())*100)/100},
+    {t:'ask [What\'s your name?] and wait',run:(a,S)=>{S.answer=S.F.answers.length?S.F.answers.shift():'';S.bub('say',S.ev(a[0]));S.note='Học sinh trả lời: «'+S.answer+'»'}},
+    {t:'(answer)',r:'r',val:(a,S)=>S.answer},
+    {t:'<key [space v] pressed?>',r:'b',val:()=>false},{t:'<mouse down?>',r:'b',val:()=>false},{t:'(mouse x)',r:'r',val:()=>0},{t:'(mouse y)',r:'r',val:()=>0},
+    {t:'set drag mode [draggable v]',run:()=>{}},{t:'(loudness)',r:'r',val:()=>0},
+    {t:'(timer)',r:'r',val:(a,S)=>Math.round((S.t-S.tz)*10)/10},{t:'reset timer',run:(a,S)=>{S.tz=S.t}},
+    {t:'([backdrop # v] of [Stage v])',r:'r',val:(a,S)=>{const p=String(a[0]).toLowerCase();return/x pos/.test(p)?S.sx():/y pos/.test(p)?S.sy():/direction/.test(p)?S.dir():/size/.test(p)?S.size:/costume/.test(p)?S.costume:/backdrop/.test(p)?S.backdrop:/volume/.test(p)?S.vol:a[0]in S.vars?S.vars[a[0]]:0}},
+    {t:'(current [year v])',r:'r',val:a=>{const d=new Date(),p=String(a[0]).toLowerCase();return/year/.test(p)?d.getFullYear():/month/.test(p)?d.getMonth()+1:/day of week/.test(p)?d.getDay()+1:/date/.test(p)?d.getDate():/hour/.test(p)?d.getHours():/minute/.test(p)?d.getMinutes():d.getSeconds()}},
+    {t:'(days since 2000)',r:'r',val:()=>Math.round((Date.now()-Date.UTC(2000,0,1))/864e5*100)/100},{t:'(username)',r:'r',val:()=>''},
+    /* Biến, danh sách: hiện / ẩn (phần còn lại dùng chung) */
+    {t:'show variable [my variable v]',run:()=>{}},{t:'hide variable [my variable v]',run:()=>{}},{t:'show list [my list v]',run:()=>{}},{t:'hide list [my list v]',run:()=>{}},
+    /* Bút vẽ */
+    {t:'erase all',run:(a,S)=>{S.tc=S.trail.length;S.sc=S.stamps.length}},{t:'clear',run:(a,S)=>{S.tc=S.trail.length;S.sc=S.stamps.length}},
+    {t:'stamp',run:(a,S)=>{S.stamps.push({x:S.x,y:S.y,h:S.h,size:S.size,costume:S.costume})}},
+    {t:'pen down',run:(a,S)=>{S.pen=true}},{t:'pen up',run:(a,S)=>{S.pen=false}},
+    {t:'set pen color to [#ff0000]',run:(a,S)=>{const v=String(S.ev(a[0]));if(/^#/.test(v))S.pc=v;else{S.pp.color=knum(v);S.pc=penHex(S.pp)}}},
+    {t:'change pen [color v] by (10)',run:(a,S)=>S.penParam(a[0],S.n(a[1]),true)},{t:'set pen [color v] to (50)',run:(a,S)=>S.penParam(a[0],S.n(a[1]),false)},
+    {t:'change pen color by (10)',run:(a,S)=>S.penParam('color',S.n(a[0]),true)},
+    {t:'change pen size by (1)',run:(a,S)=>{S.psz=Math.max(1,S.psz+S.n(a[0]))}},{t:'set pen size to (1)',run:(a,S)=>{S.psz=Math.max(1,S.n(a[0]))}}]};
+for(const k in KITS)KITS[k].push(...KIT_COMMON);
+/* mẫu cú pháp → biểu thức chính quy bắt các ô nhập (ô số nhận cả khối lồng đến 3 tầng ngoặc) */
+const NP=d=>d?'\\((?:[^()]|'+NP(d-1)+')*\\)':'\\([^()]*\\)',INP='('+NP(3)+'|\\[[^\\]]*\\]|<.*?>)';
+for(const k in KITS)for(const b of KITS[k]){const body=b.r?b.t.slice(1,-1):b.t;
+  const parts=body.split(/(\[[^\]]*\]|\([^)]*\)|<>)/).filter(Boolean);
+  b.re=new RegExp('^'+parts.map(p=>/^\[.* v\]$/.test(p)?'\\[([^\\]]+?)(?: v)?\\]':/^[[(]|^<>$/.test(p)?INP:p.trim()?p.trim().replace(/[.*+?^${}|\\]/g,'\\$&').replace(/\s+/g,'\\s+'):'').filter(Boolean).join('\\s*')+'\\s*$','i')}
+/* bỏ cặp ngoặc ngoài cùng chỉ khi ngoặc đầu đóng đúng ở cuối, vd (a) < (b) giữ nguyên */
+const outerPair=s=>{if(!/^[(<]/.test(s))return false;let d=0;for(let i=0;i<s.length;i++){const c=s[i];if(c==='('||c==='<'&&(i===0||s[i-1]!==' '||/^<[([]/.test(s.slice(i))))d++;else if(c===')'||c==='>'&&d>0&&s[i-1]!==' ')d--;if(d===0)return i===s.length-1}return false};
+const unwrap=s=>{s=String(s).trim();return/^\(/.test(s)&&outerPair(s)?s.slice(1,-1).trim():s};
+const argOf=s=>{s=String(s).trim();return/^\[[^\]]*\]$/.test(s)?s.slice(1,-1).replace(/ v$/,''):unwrap(s)};
+function kitMatch(kit,text){const t=String(text).trim(),inner=/^[(<].*[)>]$/.test(t)?t.slice(1,-1).trim():null;
+  for(const b of KITS[kit]||[]){const m=t.match(b.re)||(b.r&&inner!==null?inner.match(b.re):null);if(m)return[b,m.slice(1).map(argOf)]}return null}
+/* gắn màu nhóm cho từng dòng khối (giáo viên không phải gõ mã màu) */
+function kitAnnotate(src,kit){const C=KIT_CAT[kit]||{},tag=b=>b.ann||(C[b.c]&&!C[b.c][2]?C[b.c][1]:'');
+  const plain=(KITS[kit]||[]).filter(b=>b.r&&tag(b)&&!/[[(<]/.test(b.t.slice(1,-1)));
+  return String(src).split('\n').map(line=>{const s=line.trim();if(!s||/::/.test(s))return line;
+  let out=line.replace(/\(([^()<>]*?(?:\[[^\]]*\][^()<>]*?)+)\)|<([^<>]*?\[[^\]]*\][^<>]*?)>/g,(m0)=>{const mm=kitMatch(kit,m0);return mm&&mm[0].r&&tag(mm[0])?m0.slice(0,-1)+' :: '+tag(mm[0])+' '+(mm[0].r==='b'?'boolean':'reporter')+m0.slice(-1):m0});
+  for(const b of plain)out=out.split(b.t).join(b.t.slice(0,-1)+' :: '+tag(b)+' '+(b.r==='b'?'boolean':'reporter')+b.t.slice(-1));
+  const mm=kitMatch(kit,s);if(mm&&!mm[0].r&&tag(mm[0]))out=out.replace(/\s*$/,'')+' :: '+(mm[0].hat?'hat ':'')+tag(mm[0]);return out}).join('\n')}
+/* scratchblocks chưa có khối while của VEXcode: vẽ như khối lặp chữ C */
+function kitLang(SB){const en=SB.allLanguages.en;if(en&&!en.aliases['while %1']){en.aliases['while %1']='CONTROL_REPEATUNTIL';SB.loadLanguages({en})}}
+/* ---------- chương trình khối → cây lệnh (dùng cho Python và mô phỏng) ---------- */
+function progParse(src){const raw=String(src).replace(/\t/g,'  ').split('\n').map(s=>s.replace(/\s+::.*$/,'').replace(/\s+$/,'')).filter(s=>s.trim()),L=raw.map(s=>s.trim());let i=0;
+  function block(){const out=[];while(i<L.length){const s=L[i];if(/^(end|else)$/i.test(s))return out;const line=i;i++;let m;
+      if((m=s.match(/^repeat\s+until\s*<(.*)>$/i))){const b=block();i++;out.push({k:'until',c:m[1],b,line})}
+      else if((m=s.match(/^while\s*<(.*)>$/i))){const b=block();i++;out.push({k:'while',c:m[1],b,line})}
+      else if((m=s.match(/^repeat\s*\((.*)\)$/i))){const b=block();i++;out.push({k:'rep',n:unwrap('('+m[1]+')'),b,line})}
+      else if(/^forever$/i.test(s)){const b=block();i++;out.push({k:'forever',b,line})}
+      else if((m=s.match(/^if\s*<(.*)>\s*then$/i))){const b=block();let e=null;if(/^else$/i.test(L[i]||'')){i++;e=block()}i++;out.push({k:'if',c:m[1],b,e,line})}
+      else if((m=s.match(/^wait\s+until\s*<(.*)>$/i)))out.push({k:'waituntil',c:m[1],line});
+      else if((m=s.match(/^wait\s*\((.*)\)\s*(seconds|secs)?$/i)))out.push({k:'wait',n:unwrap('('+m[1]+')'),line});
+      else if(/^stop\s*\[/i.test(s))out.push({k:'stop',line});
+      else out.push({k:'cmd',s,line})}return out}
+  return{L,raw,tree:block()}}
+/* tách thành các kịch bản theo khối mũ (when …); dòng trước khối mũ đầu tiên coi như kịch bản bắt đầu */
+function progScripts(kit,tree){const out=[];let cur=null;
+  for(const n of tree){const mm=n.k==='cmd'?kitMatch(kit,n.s):null,d=n.k==='cmd'&&n.s.match(/^define\s+(.+)$/i);
+    if(d){cur={hat:n.s,line:n.line,mm:null,start:false,recv:null,proc:d[1].trim(),body:[]};out.push(cur)}
+    else if(n.k==='cmd'&&(mm&&mm[0].hat||/^when\b/i.test(n.s))){cur={hat:n.s,line:n.line,mm,start:!!(mm&&mm[0].start)||/when (green )?flag clicked/i.test(n.s),recv:mm&&mm[0].recv?mm[1][0]:null,body:[]};out.push(cur)}
+    else{if(!cur){cur={hat:null,line:-1,mm:null,start:true,recv:null,body:[]};out.push(cur)}cur.body.push(n)}}
+  return out}
+/* biểu thức: số, chữ, biến, khối cảm biến, so sánh, phép tính, và / hoặc / không */
+function exprEval(kit,e0,S){let e=unwrap(String(e0).trim()),m;
+  if(/^-?\d+([.,]\d+)?$/.test(e))return knum(e);
+  if(/^\[[^\]]*\]$/.test(e))return exprEval(kit,e.slice(1,-1),S);
+  if((m=e.match(/^<?\s*not\s*<(.*)>\s*>?$/i)))return!exprEval(kit,m[1],S);
+  const top=splitTop(e);if(top){const[a,op,b]=top,x=exprEval(kit,a,S),y=exprEval(kit,b,S),nx=knum(x),ny=knum(y);
+    return op==='<'?nx<ny:op==='>'?nx>ny:op==='='?String(x).toLowerCase()===String(y).toLowerCase()||nx===ny&&x!==''&&y!=='':op==='and'?!!(x&&y):op==='or'?!!(x||y):op==='+'?nx+ny:op==='-'?nx-ny:op==='*'?nx*ny:op==='/'?nx/ny:op==='mod'?((nx%ny)+ny)%ny:0}
+  if(S.vars&&e in S.vars)return S.vars[e];
+  if(S.lists&&e in S.lists)return S.lists[e].join(' ');
+  const mm=kitMatch(kit,'<'+e+'>')||kitMatch(kit,'('+e+')');if(mm&&mm[0].val)return mm[0].val(mm[1],S);return/[[(<?]/.test(e)?0:e===String(e0).trim()?String(e0):e}
+function splitTop(e){let d=0;const ops=[' and ',' or ',' < ',' > ',' = ',' + ',' - ',' * ',' / ',' mod '];for(const op of ops){d=0;for(let i=0;i<e.length;i++){const c=e[i];if('(<['.includes(c))d++;else if(')>]'.includes(c)&&d>0)d--;
+      else if(d===0&&e.startsWith(op,i))return[e.slice(0,i),op.trim(),e.slice(i+op.length)]}}return null}
+let pyVars=new Set(),pyLists=new Set(),pyCmRot=false;
+/* quãng đường của khối Di chuyển SPIKE → số độ động cơ (theo cm_per_rotation nếu chương trình có đặt) */
+const movDeg=(e,u,sg,P)=>/cm|inch/i.test(u)&&pyCmRot?'int('+(sg<0?'-':'')+P(e)+(/inch/i.test(u)?' * 2.54':'')+' * 360 / cm_per_rotation)':pmi(P(e),sg*SPDEG(u));
+function exprPy(kit,e){e=unwrap(String(e).trim());let m;if(/^-?\d+([.,]\d+)?$/.test(e))return String(knum(e));
+  if(/^\[[^\]]*\]$/.test(e))return exprPy(kit,e.slice(1,-1));
+  if((m=e.match(/^<?\s*not\s*<(.*)>\s*>?$/i)))return'not ('+exprPy(kit,m[1])+')';
+  const top=splitTop(e);if(top)return exprPy(kit,top[0])+' '+({'=':'==',mod:'%'}[top[1]]||top[1])+' '+exprPy(kit,top[2]);
+  if(pyVars.has(e)||pyLists.has(e))return pyv(e);
+  const P=x=>exprPy(kit,x),mm=kitMatch(kit,'<'+e+'>')||kitMatch(kit,'('+e+')');return mm&&mm[0].py?mm[0].py(mm[1],P):/^[(<[]/.test(e)||!e?'('+e+')':JSON.stringify(e)}
+/* ---------- Python tương ứng ----------
+   VEXcode V5: hàm when_started…, hàm sự kiện đăng ký bằng .pressed(…), Event() cho tin nhắn.
+   SPIKE App 3: mỗi kịch bản là một coroutine (async def); khối mũ sự kiện chờ điều kiện bằng runloop.until; chạy tất cả bằng runloop.run(…). */
+function progPython(src,kit){const{tree,L}=progParse(src),ind=n=>'    '.repeat(n),sp=kit==='spike',P=x=>exprPy(kit,x),msgs=new Set();
+  pyVars=new Set();pyLists=new Set();pyCmRot=sp&&L.some(s=>/^set 1 motor rotation/i.test(s));
+  for(const s of L){const m=s.match(/^(?:set|change)\s*\[([^\]]+?)(?: v)?\]\s*(?:to|by)\b/i);if(m)pyVars.add(m[1]);
+    if(/^(add|delete|insert|replace)\b|\bitem\b/i.test(s))for(const x of s.matchAll(/\b(?:to|of|in)\s*\[([^\]]+?) v\]/gi))pyLists.add(x[1])}
+  const scripts=progScripts(kit,tree),procs=new Set(scripts.filter(sc=>sc.proc).map(sc=>sc.proc));
+  const sleep=n=>sp?'await runloop.sleep_ms('+pmi(P(n),1000)+')':'wait('+P(n)+', SECONDS)',tick=sp?'await runloop.sleep_ms(10)':'wait(5, MSEC)';
+  const recvFn=name=>(sp?'receive_':'onevent_')+pyv(name);
+  function emit(list,d,out){if(!list.length){out.push(ind(d)+'pass');return}for(const s of list){
+    if(s.k==='rep'){out.push(ind(d)+'for repeat_count in range('+P(s.n)+'):');emit(s.b,d+1,out)}
+    else if(s.k==='forever'){out.push(ind(d)+'while True:');emit(s.b,d+1,out);out.push(ind(d+1)+tick)}
+    else if(s.k==='until'){out.push(ind(d)+'while not ('+P(s.c)+'):');emit(s.b,d+1,out);out.push(ind(d+1)+tick)}
+    else if(s.k==='while'){out.push(ind(d)+'while '+P(s.c)+':');emit(s.b,d+1,out);out.push(ind(d+1)+tick)}
+    else if(s.k==='if'){out.push(ind(d)+'if '+P(s.c)+':');emit(s.b,d+1,out);if(s.e){out.push(ind(d)+'else:');emit(s.e,d+1,out)}}
+    else if(s.k==='wait')out.push(ind(d)+sleep(s.n));
+    else if(s.k==='waituntil'){if(sp)out.push(ind(d)+'await runloop.until(lambda: '+P(s.c)+')');else{out.push(ind(d)+'while not ('+P(s.c)+'):');out.push(ind(d+1)+tick)}}
+    else if(s.k==='stop')out.push(ind(d)+(sp?'raise SystemExit  # dừng chương trình':'brain.program_stop()'));
+    else if(procs.has(s.s))out.push(ind(d)+(sp?'await ':'')+pyv(s.s)+'()');
+    else{const mm=kitMatch(kit,s.s);let py=mm&&mm[0].py?mm[0].py(mm[1],P):'# '+s.s;
+      const bc=py.match(/^@bc (.+?)( wait)?$/);if(bc){msgs.add(bc[1]);py=sp?'await '+recvFn(bc[1])+'()'+(bc[2]?'':'  # SPIKE Python không có tin nhắn: gọi thẳng hàm nhận tin'):pyv(bc[1])+'.'+(bc[2]?'broadcast_and_wait()':'broadcast()')}
+      for(const l of py.split('\n'))out.push(ind(d)+l)}}}
+  /* biến toàn cục được gán trong hàm cần khai báo global */
+  const SPG=/^\s*(t0|move_speed|volume|sound_pitch|sound_pan|cm_per_rotation|pixel_brightness) [+-]?= /;
+  const glob=body=>{const g=[...pyVars].map(pyv);if(sp)for(const l of body){const m=l.match(SPG);if(m&&!g.includes(m[1]))g.push(m[1])}return g.length?ind(1)+'global '+g.join(', '):null};
+  const defs=[],regs=[],thr=[],runs=[];let ns=0,nev=0;
+  for(const sc of scripts){const body=[],ad=sp?'async def ':'def ';
+    if(sp&&!sc.start&&!sc.recv&&!sc.proc){/* khối mũ sự kiện SPIKE: chờ điều kiện đúng → chạy → chờ điều kiện hết đúng rồi lặp lại */
+      const mm=sc.mm,cond=mm&&mm[0].cond?mm[0].cond(mm[1],P):'False',f='when_event_'+(++nev);emit(sc.body,2,body);const g=glob(body);
+      defs.push('# '+sc.hat,ad+f+'():',...(g?[g]:[]),ind(1)+'while True:',ind(2)+'await runloop.until(lambda: '+cond+')',...body,ind(2)+'await runloop.until(lambda: not ('+cond+'))','');runs.push(f);continue}
+    emit(sc.body,1,body);const g=glob(body);if(g)body.unshift(g);
+    if(sc.proc){defs.push('# Khối của tôi: '+sc.proc,ad+pyv(sc.proc)+'():',...body)}
+    else if(sc.start){const f='when_started'+(++ns);defs.push(ad+f+'():',...body);if(sp)runs.push(f);else thr.push(f)}
+    else if(sc.recv){const f=recvFn(sc.recv)+(sp?'':'_'+nev++);msgs.add(sc.recv);defs.push(ad+f+'():',...body);if(!sp)regs.unshift(pyv(sc.recv)+'('+f+')')}
+    else{const f='onevent_'+(++nev),mm=sc.mm;defs.push(ad+f+'():',...body);regs.unshift(mm&&mm[0].reg?mm[0].reg(mm[1],f):'# '+sc.hat+' → '+f)}
+    defs.push('')}
+  const out=defs.join('\n'),imp=(/random\./.test(out)?'import random\n':'')+(/math\./.test(out)?'import math\n':''),init=[...pyVars].map(v=>pyv(v)+' = 0\n').join('')+[...pyLists].map(v=>pyv(v)+' = []\n').join('');
+  if(sp){const has=re=>re.test(out);
+    return'# Python cho LEGO SPIKE App 3 (chế độ Python của phần mềm SPIKE)\nfrom hub import port, button, light_matrix, light, sound, motion_sensor\nimport motor, motor_pair, color, color_sensor, distance_sensor, force_sensor, runloop, time\n'+
+      (has(/color_matrix\./)?'import color_matrix\n':'')+(has(/orientation\./)?'import orientation\n':'')+(has(/app_sound\./)?'from app import sound as app_sound\n':'')+imp+'\n'+
+      (L.some(s=>/^set movement motors to \[/i.test(s))?'':'motor_pair.pair(motor_pair.PAIR_1, port.A, port.B)\n')+'move_speed = 500  # độ/giây (50 %)\nmotor_speed = {}  # tốc độ riêng của từng động cơ (độ/giây)\n'+
+      (pyCmRot?'cm_per_rotation = 17.5\n':'')+(has(/\bvolume\b/)?'volume = 100\n':'')+(has(/sound_pitch|sound_pan/)?'sound_pitch = 0\nsound_pan = 0\n':'')+'t0 = time.ticks_ms()\n'+init+'\n'+out+'\n'+
+      'runloop.run('+(runs.length?runs.map(f=>f+'()').join(', '):'')+')'}
+  return'# VEXcode V5 Python: cấu hình Drivetrain, cảm biến trong mục Devices trước khi chạy\nfrom vex import *\n'+imp+'\n'+[...msgs].map(m=>pyv(m)+' = Event()\n').join('')+init+'\n'+out+'\n'+[...regs,...thr.slice(1).map((f,i)=>'ws'+(i+2)+' = Thread('+f+')'),...thr.slice(0,1).map(f=>f+'()')].join('\n')}
+/* ---------- sân mô phỏng ---------- */
+const COLN={red:'#e53935',green:'#43a047',blue:'#1e88e5',yellow:'#fdd835',black:'#212121',white:'#ffffff',đỏ:'#e53935',xanh:'#1e88e5',vàng:'#fdd835',đen:'#212121'};
+function fieldParse(t){const F={w:200,h:120,obs:[],zones:[],start:[30,60,0]};
+  for(const ln of String(t||'').split('\n').map(s=>s.trim()).filter(Boolean)){const n=(ln.match(/-?\d+([.,]\d+)?/g)||[]).map(knum);
+    if(/^sân|^san|^field/i.test(ln)&&n.length>=2){F.w=n[0];F.h=n[1]}else if(/^(xuất phát|xuat phat|start)/i.test(ln)&&n.length>=2)F.start=[n[0],n[1],n[2]||0];
+    else if(/^(hộp|hop|vật cản|box|wall)/i.test(ln)&&n.length>=4)F.obs.push(n.slice(0,4));
+    else{const m=ln.match(/^(màu|mau|vạch|color)\s+(\S+)/i);if(m&&n.length>=4)F.zones.push([m[2].toLowerCase().replace('đỏ','red').replace('xanh','blue').replace('vàng','yellow').replace('đen','black'),...n.slice(0,4)])}}
+  return F}
+const ROB=8;/* bán kính thân robot (cm) */
+const robCache=new Map();
+/* sân khấu Scratch: toạ độ Scratch (gốc ở giữa, y hướng lên) → toạ độ trong (gốc góc trên trái, y hướng xuống, hướng 0° là sang phải) */
+function stageParse(t){const F={w:480,h:360,obs:[],zones:[],start:[240,180,0],answers:[],stage:true};
+  for(const ln of String(t||'').split('\n').map(s=>s.trim()).filter(Boolean)){const n=(ln.match(/-?\d+([.,]\d+)?/g)||[]).map(knum);let m;
+    if((m=ln.match(/^(trả lời|tra loi|answer)\s*:?\s*(.*)$/i)))F.answers.push(m[2]);
+    else if(/^(xuất phát|xuat phat|start)/i.test(ln)&&n.length>=2)F.start=[n[0]+240,180-n[1],(n.length>2?n[2]:90)-90];
+    else if((m=ln.match(/^(màu|mau|color)\s+(#[0-9a-f]{6}|\S+)/i))&&n.length>=4){const v=ln.slice(m[0].length).match(/-?\d+([.,]\d+)?/g).map(knum);F.zones.push([m[2].toLowerCase().replace('đỏ','red').replace('xanh','blue').replace('vàng','yellow').replace('đen','black'),v[0]+240,180-v[1],v[2],v[3]])}}
+  return F}
+/* chương trình Scratch viết bằng tiếng Việt → tiếng Anh (thư viện scratchblocks dịch) để mô phỏng */
+function sbToEn(src){const SB=window.scratchblocks;try{const doc=SB.parse(src,{languages:['en','vi']});doc.translate(SB.allLanguages.en);return doc.stringify()}catch(e){return src}}
+function robotSteps(o){const key=o.kit+'|'+o.src+'|'+o.field;let r=robCache.get(key);if(r)return r;const kit=o.kit,scr=kit==='scratch';
+  let src=o.src,keep=true;if(scr&&/[^\x00-\x7f]/.test(String(src).replace(/\[[^\]]*\]/g,''))){if(window.scratchblocks)src=sbToEn(src);else{keep=false;getSb().then(()=>{robCache.delete(key);draw();if(rbDlg.open)rbPrev()}).catch(()=>{})}}
+  const F=scr?stageParse(o.field):fieldParse(o.field),{L,raw,tree}=progParse(src),h0=F.start[2];
+  const S={x:F.start[0],y:F.start[1],h:h0,pen:!scr,F,pc:'#4d4dff',psz:1,pp:{color:66,saturation:100,brightness:100,transparency:0},tc:0,sc:0,stamps:[],size:100,costume:1,backdrop:1,fx:{},hidden:false,say:'',sayK:'',sayClr:false,rs:'all around',answer:'',note:'',screen:'',rows:[],row:0,prec:0,t:0,tz:0,speed:50,tspeed:50,vol:100,cmRot:0,trail:[],hit:false,mv:null,mot:{},vars:{},lists:{},yawOff:0,hdOff:0,rotOff:0,halt:false,brk:false},steps=[];
+  let seed=12345;S.rnd=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;
+  S.ev=e=>exprEval(kit,e,S);S.n=e=>knum(S.ev(e));S.list=n=>S.lists[n]||(S.lists[n]=[]);
+  S.v=()=>Math.max(1,S.speed)/100*40;S.w=()=>Math.max(1,S.tspeed)/100*180;
+  /* SPIKE: góc yaw dương khi quay ngược chiều kim đồng hồ; VEX: heading, rotation dương khi quay theo chiều kim đồng hồ */
+  S.yaw=()=>{const y=-(S.h-h0)+S.yawOff;return Math.round((((y+180)%360)+360)%360-180)};
+  S.head=()=>(((S.h-h0+S.hdOff)%360)+360)%360;S.rotv=()=>S.h-h0+S.rotOff;
+  S.scr=txt=>{if(txt!==undefined){S.rows=[txt];S.row=0}S.screen=S.rows.filter(x=>x!=='').join(' ⏎ ')};
+  S.prn=(v,dev)=>{if(/console/i.test(dev||''))return;const s=typeof v==='number'?String(Math.round(v*Math.pow(10,S.prec))/Math.pow(10,S.prec)):String(v);S.rows[S.row]=(S.rows[S.row]||'')+s;S.scr()};
+  S.nl=()=>{S.row++;S.rows[S.row]=S.rows[S.row]||'';S.scr()};
+  const ray=(x,y,h)=>{const dx=Math.cos(h*Math.PI/180),dy=Math.sin(h*Math.PI/180);let best=Infinity;
+    const box=(bx,by,bw,bh)=>{let t0=-Infinity,t1=Infinity;for(const[o0,dd,lo,hi]of[[x,dx,bx,bx+bw],[y,dy,by,by+bh]]){if(Math.abs(dd)<1e-9){if(o0<lo||o0>hi)return;continue}let a=(lo-o0)/dd,b=(hi-o0)/dd;if(a>b)[a,b]=[b,a];t0=Math.max(t0,a);t1=Math.min(t1,b)}if(t1>=Math.max(t0,0))best=Math.min(best,Math.max(t0,0))};
+    for(const b of F.obs)box(...b);for(const t of[(0-x)/dx,(F.w-x)/dx,(0-y)/dy,(F.h-y)/dy])if(isFinite(t)&&t>=0)best=Math.min(best,t);return best};
+  S.dist=()=>scr?Math.hypot(S.x-240,S.y-180):Math.max(0,Math.round((ray(S.x,S.y,S.h)-ROB)*10)/10);
+  /* nhân vật Scratch */
+  S.sx=()=>S.x-240;S.sy=()=>180-S.y;S.dir=()=>{let d=((S.h+90)%360+360)%360;if(d>180)d-=360;return Math.round(d*100)/100};
+  S.rad=()=>18*S.size/100;S.atEdge=()=>{const r=S.rad();return S.x-r<=0||S.x+r>=F.w||S.y-r<=0||S.y+r>=F.h};
+  S.line=(x0,y0)=>{if(S.pen&&(Math.abs(S.x-x0)>.01||Math.abs(S.y-y0)>.01))S.trail.push([x0,y0,S.x,S.y,S.pc,S.psz])};
+  S.goXY=(sx,sy)=>{const x0=S.x,y0=S.y;S.x=Math.max(0,Math.min(F.w,sx+240));S.y=Math.max(0,Math.min(F.h,180-sy));S.line(x0,y0)};
+  S.bounce=()=>{const r=S.rad();if(S.x-r<0||S.x+r>F.w){S.h=180-S.h;S.x=Math.max(r,Math.min(F.w-r,S.x))}if(S.y-r<0||S.y+r>F.h){S.h=-S.h;S.y=Math.max(r,Math.min(F.h-r,S.y))}};
+  S.bub=(k,txt,secs)=>{S.sayK=k;S.say=String(txt);if(secs!==undefined){S.t+=secs;S.sayClr=true}};
+  S.penParam=(p,v,rel)=>{p=String(p).toLowerCase();const k=/sat/.test(p)?'saturation':/bright/.test(p)?'brightness':/trans/.test(p)?'transparency':'color';S.pp[k]=rel?S.pp[k]+v:v;if(k==='color')S.pp.color=((S.pp.color%200)+200)%200;else S.pp[k]=Math.max(0,Math.min(100,S.pp[k]));S.pc=penHex(S.pp)};
+  S.color=()=>{for(const z of F.zones.slice().reverse())if(S.x>=z[1]&&S.x<=z[1]+z[3]&&S.y>=z[2]&&S.y<=z[2]+z[4])return z[0];return'white'};
+  /* đi thẳng d cm (âm là lùi), dừng khi chạm vật cản; đoạn vết thẳng hàng nối tiếp được gộp */
+  S.drive=d=>{if(scr){/* Scratch: nhân vật không va chạm, chỉ không ra khỏi sân khấu */const x0=S.x,y0=S.y;S.x=Math.max(0,Math.min(F.w,S.x+d*Math.cos(S.h*Math.PI/180)));S.y=Math.max(0,Math.min(F.h,S.y+d*Math.sin(S.h*Math.PI/180)));S.line(x0,y0);return d}
+    const free=d>=0?S.dist():Math.max(0,ray(S.x,S.y,S.h+180)-ROB),dd=d>=0?Math.min(d,free):-Math.min(-d,free);const x0=S.x,y0=S.y;
+    S.x+=dd*Math.cos(S.h*Math.PI/180);S.y+=dd*Math.sin(S.h*Math.PI/180);
+    if(S.pen&&Math.abs(dd)>.01){const l=S.trail[S.trail.length-1];if(l&&Math.abs(l[2]-x0)<1e-6&&Math.abs(l[3]-y0)<1e-6&&Math.abs((l[2]-l[0])*(S.y-y0)-(l[3]-l[1])*(S.x-x0))<1e-6*Math.hypot(l[2]-l[0],l[3]-l[1])*Math.hypot(S.x-x0,S.y-y0)+1e-9&&((l[2]-l[0])*(S.x-x0)+(l[3]-l[1])*(S.y-y0))>0){l[2]=S.x;l[3]=S.y}else S.trail.push([x0,y0,S.x,S.y])}
+    if(Math.abs(dd)<Math.abs(d)-.05)S.hit=true;return dd};
+  S.go=d=>{const dd=S.drive(d);S.t+=Math.abs(dd)/S.v()};
+  S.rot=a=>{S.h+=a;S.t+=Math.abs(a)/S.w()};
+  /* lái lệch (SPIKE): bánh ngoài đi d cm, bánh trong theo tỉ lệ 1 − 2|lái|/100 */
+  S.steer=(st,d,noT)=>{st=Math.max(-100,Math.min(100,st));if(!st){const dd=S.drive(d);if(!noT)S.t+=Math.abs(dd)/S.v();return}
+    const r=1-2*Math.abs(st)/100,sg=Math.sign(st),n=Math.max(1,Math.ceil(Math.abs(d))),od=d/n,dc=od*(1+r)/2,dh=sg*od*(1-r)/TRACK*180/Math.PI;
+    for(let i=0;i<n;i++){S.h+=dh/2;const got=S.drive(dc);S.h+=dh/2;if(Math.abs(got)<Math.abs(dc)-1e-6)break}if(!noT)S.t+=Math.abs(d)/S.v()};
+  /* chạy tiếp dt giây khi robot đang chạy liên tục (start moving, drive, turn) hoặc động cơ đang quay */
+  S.run=dt=>{for(const k in S.mot){const m=S.mot[k];if(m.spin){m.pos+=m.spin*m.sp*10*dt;m.rel+=m.spin*m.sp*10*dt}}const mv=S.mv;
+    if(mv&&mv.k==='d')S.steer(mv.st,S.v()*dt*mv.s,true);else if(mv&&mv.k==='t')S.h+=S.w()*dt*mv.s;
+    else if(mv&&mv.k==='tk'){/* hai bánh tốc độ riêng (start moving at … % … % speed) */const vl=mv.l/100*40*dt,vr=mv.r/100*40*dt,n=Math.max(1,Math.ceil(Math.max(Math.abs(vl),Math.abs(vr))));
+      for(let i=0;i<n;i++){const dh=(vl-vr)/n/TRACK*180/Math.PI;S.h+=dh/2;S.drive((vl+vr)/2/n);S.h+=dh/2}}S.t+=dt};
+  const scripts=progScripts(kit,tree),procs={};for(const sc of scripts)if(sc.proc)procs[sc.proc]=sc.body;const moving=()=>S.mv||Object.values(S.mot).some(m=>m.spin);
+  const snap=(line,msg)=>{if(S.note){msg+=' — '+S.note;S.note=''}steps.push({x:S.x,y:S.y,h:S.h,tn:S.trail.length,line,msg,screen:S.screen,hit:S.hit,d:S.dist(),col:S.color(),trail:S.trail.length?S.trail[S.trail.length-1].slice():null,
+    ...(scr?{say:S.say,sayK:S.sayK,hidden:S.hidden,size:S.size,costume:S.costume,backdrop:S.backdrop,fx:{...S.fx},rs:S.rs,tc:S.tc,sn:S.stamps.length,sc:S.sc,pen:S.pen,pc:S.pc,vars:{...S.vars}}:{})});
+    if(S.sayClr){S.say='';S.sayClr=false}};
+  snap(-1,'Robot ở vị trí xuất phát');let guard=0,depth=0;const LIM=400;
+  S.bc=name=>{if(depth>8)return;depth++;for(const sc of scripts)if(sc.recv&&sc.recv===name){snap(sc.line,'Nhận tin «'+name+'»');run(sc.body)}depth--};
+  const ev=c=>!!exprEval(kit,c,S);
+  function loop(s,cond,max){for(let i=0;i<max&&!S.halt&&steps.length<=LIM;i++){if(cond&&!cond())break;const t0=S.t,n0=steps.length;run(s.b);if(S.brk){S.brk=false;break}
+    if(S.t===t0&&moving()){S.run(.1);if(steps.length===n0&&i%5===4)snap(s.line,'Robot đang chạy… '+L[s.line])}}}
+  function run(list){for(const s of list){if(S.halt||S.brk||steps.length>LIM||++guard>20000)return;
+    if(s.k==='rep')loop(s,null,Math.min(200,Math.round(S.n(s.n))));
+    else if(s.k==='forever'){loop(s,null,200);if(!S.halt&&steps.length<=LIM)steps.push({...steps[steps.length-1],msg:'Dừng mô phỏng: vòng lặp forever trên robot thật chạy mãi, ở đây dừng sau 200 vòng'})}
+    else if(s.k==='until')loop(s,()=>!ev(s.c),300);
+    else if(s.k==='while')loop(s,()=>ev(s.c),300);
+    else if(s.k==='if'){if(ev(s.c))run(s.b);else if(s.e)run(s.e)}
+    else if(s.k==='wait'){const n=S.n(s.n);if(moving())for(let k=0;k<Math.ceil(n/.1);k++)S.run(Math.min(.1,n-k*.1));else S.t+=n;snap(s.line,'Chờ '+n+' giây'+(S.hit?' — chạm vật cản!':''))}
+    else if(s.k==='waituntil'){if(ev(s.c))snap(s.line,'Điều kiện đã đúng');else if(moving()){const t0=S.t;let k=0;for(;k<300&&!ev(s.c);k++)S.run(.1);snap(s.line,k<300?'Chờ đến khi điều kiện đúng: sau '+Math.round((S.t-t0)*10)/10+' giây'+(S.hit?' — robot đang tì vào vật cản':''):'Đã chờ 30 giây, điều kiện vẫn chưa đúng')}
+      else snap(s.line,'Chờ… (điều kiện chưa đúng, robot đứng yên nên không tự đổi)')}
+    else if(s.k==='stop'){S.halt=true;S.mv=null;snap(s.line,'Dừng chương trình')}
+    else if(procs[s.s]){snap(s.line,'Gọi khối «'+s.s+'»');if(depth<8){depth++;run(procs[s.s]);depth--}}
+    else{const mm=kitMatch(kit,s.s);S.hit=false;if(mm&&mm[0].run){mm[0].run(mm[1],S);if(S.halt)S.mv=null;snap(s.line,L[s.line]+(S.hit?' — chạm vật cản!':''))}else if(!mm||!mm[0].hat)snap(s.line,L[s.line]+(mm?'':' (mô phỏng bỏ qua)'))}}}
+  for(const sc of scripts)if(sc.start&&!S.halt){S.halt=false;run(sc.body)}
+  const other=scripts.filter(sc=>!sc.start&&!sc.recv&&!sc.proc);if(other.length&&steps.length<=LIM)steps.push({...steps[steps.length-1],line:other[0].line,msg:'Kịch bản «'+other[0].hat+'» chờ sự kiện (nút bấm, cảm biến…): mô phỏng chưa chạy'});
+  if(steps.length>LIM)steps.push({...steps[steps.length-1],msg:'Dừng mô phỏng sau '+LIM+' bước (vòng lặp quá dài)'});
+  /* chương trình tiếng Việt: bảng bên hiện đúng chữ giáo viên viết nếu số dòng khớp bản đã dịch */
+  const raw0=src!==o.src?progParse(o.src).raw:raw;
+  r={steps,trail:S.trail,stamps:S.stamps,F,L,raw:raw0.length===raw.length?raw0:raw};if(keep)robCache.set(key,r);if(robCache.size>60)robCache.delete(robCache.keys().next().value);return r}
+const ROBOT_BW=980,ROBOT_BH=560;
+/* bảng bên: chương trình đang chạy (dòng hiện tại tô sáng, giữ thụt lề), trả về toạ độ y tiếp theo */
+function progPanel(c,R,s,px,pw,ink,rows){let y=40;c.font='bold 15px '+FONT;c.fillStyle=ink;c.fillText('Chương trình',px,y);y+=22;c.font='13px '+MONO;
+  const lines=R.raw||R.L,first=Math.max(0,Math.min(s.line-(rows>>1),lines.length-rows));for(let j=first;j<Math.min(lines.length,first+rows);j++){if(j===s.line){c.fillStyle='#fff3b0';c.fillRect(px-4,y-2,pw,19)}c.fillStyle=j===s.line?'#000':'#555';c.fillText(lines[j].slice(0,40),px,y);y+=19}return y}
+/* nhân vật Scratch: thân tròn, mắt nhìn theo hướng; trang phục 2 đổi màu, hiệu ứng color đổi sắc */
+function drawSprite(c,x,y,h,sz,costume,fx,rs,alpha){c.save();c.globalAlpha=alpha==null?1-Math.max(0,Math.min(100,(fx&&fx.ghost)||0))/100:alpha;c.translate(x,y);
+  const flip=/left-right/.test(rs)&&Math.cos(h*Math.PI/180)<0;if(/left-right/.test(rs)){if(flip)c.scale(-1,1)}else if(!/don/.test(rs))c.rotate(h*Math.PI/180);c.scale(sz,sz);
+  const hue=(((costume===2?30:25)+((fx&&fx.color)||0)*1.8)%360+360)%360;c.fillStyle='hsl('+hue+',95%,'+(costume===2?62:55)+'%)';c.strokeStyle='#7a3d00';c.lineWidth=1.5;
+  c.beginPath();c.arc(0,0,18,0,Math.PI*2);c.fill();c.stroke();c.beginPath();c.moveTo(-8,-15);c.lineTo(-13,-26);c.lineTo(-2,-18);c.moveTo(-8,15);c.lineTo(-13,26);c.lineTo(-2,18);c.fill();c.stroke();
+  c.fillStyle='#fff';for(const e of[-6,6]){c.beginPath();c.arc(8,e,4.5,0,Math.PI*2);c.fill()}c.fillStyle='#222';for(const e of[-6,6]){c.beginPath();c.arc(10,e,2.2,0,Math.PI*2);c.fill()}
+  c.fillStyle='#e91e63';c.beginPath();c.arc(17,0,2.5,0,Math.PI*2);c.fill();c.restore()}
+function drawStage(c,o){
+  const R=robotSteps(o),F=R.F,i=clamp(o.st|0,0,R.steps.length-1),s=R.steps[i],ink=res(o.color||'ink');c.save();c.translate(o.x,o.y);c.scale(o.w/ROBOT_BW,o.h/ROBOT_BH);c.setLineDash([]);
+  const k=640/480,X=v=>10+v*k,Y=v=>40+v*k;
+  c.fillStyle=ink;c.font='bold 18px '+FONT;c.textBaseline='top';c.textAlign='left';c.fillText('Sân khấu Scratch · bước '+(i+1)+'/'+R.steps.length,10,8);
+  /* nền có lưới toạ độ (ô 30), trục x, y qua gốc ở giữa */
+  c.fillStyle='#fff';c.fillRect(X(0),Y(0),480*k,360*k);c.strokeStyle='#eceff1';c.lineWidth=1;c.beginPath();for(let x=30;x<480;x+=30){c.moveTo(X(x),Y(0));c.lineTo(X(x),Y(360))}for(let y=0;y<360;y+=30){c.moveTo(X(0),Y(y));c.lineTo(X(480),Y(y))}c.stroke();
+  c.strokeStyle='#b0bec5';c.beginPath();c.moveTo(X(0),Y(180));c.lineTo(X(480),Y(180));c.moveTo(X(240),Y(0));c.lineTo(X(240),Y(360));c.stroke();
+  c.fillStyle='#90a4ae';c.font='11px '+FONT;for(const v of[-240,-120,0,120,240]){c.textAlign=v===-240?'left':v===240?'right':'center';c.fillText(String(v),X(v+240),Y(180)+3)}c.textAlign='left';for(const v of[180,90,-90,-180])c.fillText(String(v),X(240)+3,Y(180-v)-(v===-180?13:0));
+  for(const z of F.zones){c.fillStyle=COLN[z[0]]||z[0];c.fillRect(X(z[1]),Y(z[2]),z[3]*k,z[4]*k)}
+  /* vết bút: mỗi đoạn có màu, cỡ riêng; erase all xoá các đoạn trước đó */
+  c.lineCap='round';const segs=s.tn>s.tc?[...R.trail.slice(s.tc,s.tn-1),s.trail||R.trail[s.tn-1]]:[];for(const t of segs){c.strokeStyle=t[4]||'#4d4dff';c.lineWidth=Math.max(1,(t[5]||1)*k);c.beginPath();c.moveTo(X(t[0]),Y(t[1]));c.lineTo(X(t[2]),Y(t[3]));c.stroke()}
+  for(const st of R.stamps.slice(s.sc,s.sn))drawSprite(c,X(st.x),Y(st.y),st.h,st.size*k/100,st.costume,null,s.rs,.55);
+  if(!s.hidden)drawSprite(c,X(s.x),Y(s.y),s.h,s.size*k/100,s.costume,s.fx,s.rs);
+  /* bóng lời nói / suy nghĩ */
+  if(s.say){c.font='14px '+FONT;const tw=Math.min(220,c.measureText(s.say).width),bx=Math.min(X(480)-tw-24,X(s.x)+14),by=Math.max(Y(0)+4,Y(s.y)-s.size*k/100*22-40);
+    c.fillStyle='#fff';c.strokeStyle='#90a4ae';c.lineWidth=1.5;c.beginPath();c.roundRect?c.roundRect(bx,by,tw+20,30,12):c.rect(bx,by,tw+20,30);c.fill();c.stroke();
+    if(s.sayK==='think'){for(const[d,r]of[[8,4],[16,2.5]]){c.beginPath();c.arc(bx+10-d*.6,by+30+d,r,0,Math.PI*2);c.fill();c.stroke()}}else{c.beginPath();c.moveTo(bx+12,by+30);c.lineTo(bx+6,by+42);c.lineTo(bx+22,by+30);c.fill();c.stroke();c.fillRect(bx+12,by+28,10,3)}
+    c.fillStyle='#263238';c.textBaseline='middle';c.fillText(s.say.length>32?s.say.slice(0,31)+'…':s.say,bx+10,by+15);c.textBaseline='top'}
+  c.strokeStyle=ink;c.lineWidth=2.5;c.strokeRect(X(0),Y(0),480*k,360*k);
+  const px=670,pw=ROBOT_BW-px-10;let y=progPanel(c,R,s,px,pw,ink,14);
+  y=Math.max(y+8,340);c.font='bold 14px '+FONT;c.fillStyle=ink;c.fillText('Nhân vật',px,y);c.font='13px '+FONT;c.fillStyle='#333';
+  const dir=((s.h+90)%360+360)%360,d=dir>180?dir-360:dir;c.fillText('x: '+Math.round(s.x-240)+'   y: '+Math.round(180-s.y)+'   hướng: '+Math.round(d),px,y+20);
+  c.fillText('kích thước: '+Math.round(s.size)+' %   trang phục: '+s.costume+'   nền: '+s.backdrop,px,y+38);c.fillText('bút: '+(s.pen?'hạ':'nhấc'),px,y+56);if(s.pen){c.fillStyle=s.pc;c.fillRect(px+62,y+57,26,12)}
+  const vs=Object.entries(s.vars||{}).slice(0,4);if(vs.length){c.fillStyle=ink;c.font='bold 14px '+FONT;c.fillText('Biến',px,y+80);c.font='13px '+FONT;vs.forEach(([n,v],j)=>{c.fillStyle='#ff8c1a';c.fillRect(px,y+99+j*19,pw,17);c.fillStyle='#fff';c.fillText((n+': '+v).slice(0,36),px+6,y+100+j*19)})}
+  c.fillStyle='#1565d8';c.font='14px '+FONT;c.fillText((s.msg||'').slice(0,90),10,ROBOT_BH-20);c.restore()}
+function drawRobot(c,o){if(o.kit==='scratch')return drawStage(c,o);
+  const R=robotSteps(o),F=R.F,i=clamp(o.st|0,0,R.steps.length-1),s=R.steps[i],ink=res(o.color||'ink');c.save();c.translate(o.x,o.y);c.scale(o.w/ROBOT_BW,o.h/ROBOT_BH);c.setLineDash([]);
+  const fw=640,fh=fw*F.h/F.w>ROBOT_BH-60?ROBOT_BH-60:fw*F.h/F.w,k=Math.min(fw/F.w,fh/F.h),X=v=>10+v*k,Y=v=>40+v*k;
+  c.fillStyle=ink;c.font='bold 18px '+FONT;c.textBaseline='top';c.textAlign='left';c.fillText('Mô phỏng robot ('+({spike:'LEGO SPIKE Prime',vex:'VEXcode V5',scratch:'Scratch'}[o.kit]||o.kit)+') · bước '+(i+1)+'/'+R.steps.length,10,8);
+  c.fillStyle='#f7f7f2';c.fillRect(X(0),Y(0),F.w*k,F.h*k);c.strokeStyle='#ddd';c.lineWidth=1;c.beginPath();for(let x=10;x<F.w;x+=10){c.moveTo(X(x),Y(0));c.lineTo(X(x),Y(F.h))}for(let y=10;y<F.h;y+=10){c.moveTo(X(0),Y(y));c.lineTo(X(F.w),Y(y))}c.stroke();
+  for(const z of F.zones){c.fillStyle=COLN[z[0]]||z[0];c.fillRect(X(z[1]),Y(z[2]),z[3]*k,z[4]*k)}
+  for(const b of F.obs){c.fillStyle='#8d6e63';c.fillRect(X(b[0]),Y(b[1]),b[2]*k,b[3]*k);c.strokeStyle='#5d4037';c.strokeRect(X(b[0]),Y(b[1]),b[2]*k,b[3]*k)}
+  c.strokeStyle=ink;c.lineWidth=2.5;c.strokeRect(X(0),Y(0),F.w*k,F.h*k);c.fillStyle='#888';c.font='12px '+FONT;c.fillText('Sân '+F.w+' × '+F.h+' cm (ô 10 cm)',X(0),Y(F.h)+4);
+  c.strokeStyle='#e53935';c.lineWidth=3;c.lineCap='round';c.beginPath();for(const t of s.tn?[...R.trail.slice(0,s.tn-1),s.trail||R.trail[s.tn-1]]:[]){c.moveTo(X(t[0]),Y(t[1]));c.lineTo(X(t[2]),Y(t[3]))}c.stroke();
+  /* robot nhìn từ trên: thân vuông, hai bánh, mũi tên hướng đi */
+  c.save();c.translate(X(s.x),Y(s.y));c.rotate(s.h*Math.PI/180);const r=ROB*k;c.fillStyle=o.kit==='vex'?'#455a64':'#fdd835';c.strokeStyle='#222';c.lineWidth=2;c.fillRect(-r,-r,2*r,2*r);c.strokeRect(-r,-r,2*r,2*r);
+  c.fillStyle='#222';c.fillRect(-r*.7,-r-4,r*1.4,6);c.fillRect(-r*.7,r-2,r*1.4,6);c.fillStyle=s.hit?'#e53935':'#1565d8';c.beginPath();c.moveTo(r*.9,0);c.lineTo(r*.1,-r*.45);c.lineTo(r*.1,r*.45);c.closePath();c.fill();c.restore();
+  /* bảng bên: chương trình (dòng đang chạy tô sáng), cảm biến, màn hình robot */
+  const px=fw+30,pw=ROBOT_BW-px-10;let y=40;c.font='bold 15px '+FONT;c.fillStyle=ink;c.fillText('Chương trình',px,y);y+=22;c.font='13px '+MONO;
+  /* giữ thụt lề như trong chương trình để thấy lệnh nằm trong vòng lặp, if */
+  const lines=R.raw||R.L,first=Math.max(0,Math.min(s.line-8,lines.length-16));for(let j=first;j<Math.min(lines.length,first+16);j++){if(j===s.line){c.fillStyle='#fff3b0';c.fillRect(px-4,y-2,pw,19)}c.fillStyle=j===s.line?'#000':'#555';c.fillText(lines[j].slice(0,40),px,y);y+=19}
+  y=Math.max(y+8,380);c.font='bold 14px '+FONT;c.fillStyle=ink;c.fillText('Cảm biến',px,y);c.font='13px '+FONT;c.fillStyle='#333';
+  c.fillText('Khoảng cách phía trước: '+(isFinite(s.d)?Math.round(s.d)+' cm':'—'),px,y+20);c.fillText('Màu dưới robot: '+({white:'trắng',red:'đỏ',green:'xanh lá',blue:'xanh dương',yellow:'vàng',black:'đen'}[s.col]||s.col),px,y+38);
+  c.fillText('Hướng: '+Math.round(((s.h%360)+360)%360)+'°  ·  Vị trí: ('+Math.round(s.x)+'; '+Math.round(s.y)+')',px,y+56);
+  c.fillStyle='#263238';c.fillRect(px,y+78,pw,34);c.fillStyle='#b2ff59';c.font='14px '+MONO;c.fillText((s.screen||'').slice(0,34),px+8,y+88);
+  c.fillStyle=s.hit?'#e53935':'#1565d8';c.font='14px '+FONT;c.fillText((s.msg||'').slice(0,60),10,ROBOT_BH-20);c.restore();
+}
+/* ---------- bảng khối, mẫu bài, Python trong hộp thoại khối lệnh ---------- */
+const KIT_SAMPLE={
+  spike:{'Đi hình vuông':'when program starts\nset movement motors to [A+B v]\nrepeat (4)\n  move [forward v] for (30) [cm v]\n  move (right: 100) for (180) [degrees v]\nend\nwrite [Xong]',
+    'Tránh vật cản':'when program starts\nrepeat (6)\n  if <[D v] is [closer than v] (15) [cm v]?> then\n    move (right: 100) for (180) [degrees v]\n  else\n    move [forward v] for (20) [cm v]\n  end\nend',
+    'Dừng ở vạch đỏ':'when program starts\nstart moving [forward v]\nwait until <[C v] is color [red v]?>\nstop moving\nwrite [Vạch đỏ!]',
+    'Đến gần vật cản':'when program starts\nset movement speed to (50) %\nstart moving [forward v]\nwait until <([D v] distance in [cm v]) < (10)>\nstop moving\nwrite (join [Cách vật: ] ([D v] distance in [cm v]))'},
+  vex:{'Đi hình vuông':'when started\nrepeat (4)\n  drive [forward v] for (300) [mm v]\n  turn [right v] for (90) degrees\nend\nprint [Done] on [Brain v]',
+    'Tránh vật cản':'when started\nrepeat (6)\n  if <([Distance1 v] object distance in [mm v]) < (150)> then\n    turn [right v] for (90) degrees\n  else\n    drive [forward v] for (200) [mm v]\n  end\nend',
+    'Dừng ở vạch đỏ':'when started\ndrive [forward v]\nwait until <[Optical1 v] detects [red v]?>\nstop driving\nprint [Red line] on [Brain v]',
+    'Đến gần vật cản':'when started\nset drive velocity to (50) %\ndrive [forward v]\nwait until <([Distance1 v] object distance in [mm v]) < (100)>\nstop driving\nprint (join [mm: ] ([Distance1 v] object distance in [mm v])) on [Brain v]'},
+  scratch:{'Vẽ hình vuông':'when flag clicked\nerase all\npen down\nrepeat (4)\n  move (100) steps\n  turn cw (90) degrees\nend',
+    'Ngôi sao nhiều màu':'when flag clicked\nerase all\ngo to x: (-100) y: (30)\npoint in direction (90)\nset pen size to (3)\npen down\nrepeat (5)\n  move (200) steps\n  turn cw (144) degrees\n  change pen [color v] by (20)\nend\npen up',
+    'Bóng nảy':'when flag clicked\ngo to x: (0) y: (0)\npoint in direction (45)\nrepeat (40)\n  move (20) steps\n  if on edge, bounce\nend',
+    'Hỏi tên':'when flag clicked\nask [Bạn tên gì?] and wait\nsay (join [Xin chào ] (answer)) for (2) seconds',
+    'Đếm số':'when flag clicked\nset [count v] to (0)\nrepeat (5)\n  change [count v] by (1)\n  say (count) for (0.5) seconds\nend'}};
+const FIELD_SAMPLE={'Đi hình vuông':'sân 200 120\nxuất phát 40 80 0','Tránh vật cản':'sân 200 120\nxuất phát 20 60 0\nhộp 120 40 20 40\nhộp 60 0 15 30','Dừng ở vạch đỏ':'sân 200 120\nxuất phát 20 60 0\nmàu đỏ 150 0 12 120',
+  'Đến gần vật cản':'sân 200 120\nxuất phát 20 60 0\nhộp 120 40 20 40','Vẽ hình vuông':'xuất phát -50 -50 90','Ngôi sao nhiều màu':'','Bóng nảy':'','Hỏi tên':'trả lời Lan','Đếm số':''};
+let sbKit='scratch';
+/* khối Scratch tiếng Anh → ngôn ngữ đang chọn (scratchblocks dịch); khối chữ C giữ dòng trống bên trong */
+const sbTrCache=new Map();
+function sbTr(t,lang){const key=lang+'|'+t;if(sbTrCache.has(key))return sbTrCache.get(key);let out=t;
+  try{const SB=window.scratchblocks,doc=SB.parse(t,{languages:['en']});doc.translate(SB.allLanguages[lang]);const ls=doc.stringify().split('\n').filter(l=>l.trim());out=t.includes('\n')?ls.join('\n  \n'):ls.join(' ')}catch(e){}
+  sbTrCache.set(key,out);return out}
+/* bảng khối theo nhóm như phần mềm của hãng; bấm khối để chèn tại con trỏ (khối chữ C chèn kèm end, con trỏ vào trong) */
+function sbPalette(){const P=$('#sbPal');P.textContent='';const k=sbKit;$('#sbPalWrap').hidden=false;$('#sbPyBtn').hidden=k==='scratch';
+  const lang=k==='scratch'?$('#sbLang').value:'en',tr=lang==='en'?t=>t:window.scratchblocks?t=>sbTr(t,lang):null;
+  if(!tr){getSb().then(()=>{if(sbKit==='scratch')sbPalette()}).catch(()=>{});P.textContent='Đang tải bảng khối tiếng Việt…';return}
+  const C=KIT_CAT[k]||{},add=(t,col)=>{const b=document.createElement('button');b.type='button';b.className='kblk';b.textContent=t.split('\n')[0].replace(/ v\]/g,']')+(t.includes('\n')?' …':'');b.style.setProperty('--kc',col);b.title='Chèn khối';
+    b.onclick=()=>{const ta=$('#sbSrc'),s=ta.selectionStart,line=ta.value.lastIndexOf('\n',s-1)+1,indent=(ta.value.slice(line).match(/^[ \t]*/)||[''])[0],pre=s===line?'':'\n'+indent,txt=t.split('\n').map((l,i)=>i?indent+l:l).join('\n');
+      ta.setRangeText(pre+txt,s,ta.selectionEnd,'end');const inner=t.indexOf('\n  \n');if(inner>=0){const p=s+pre.length+t.indexOf('\n')+1+indent.length+2;ta.setSelectionRange(p,p)}ta.focus();sbPrev()};P.append(b)};
+  for(const c in C){const h=document.createElement('h4');h.textContent=C[c][0];h.style.color=C[c][1];P.append(h);
+    if(k==='scratch'){for(const t of SCRATCH_PAL[c]||[])add(tr(t),C[c][1]);continue}
+    if(c==='ctl')for(const t of KIT_CTL[k]||[])add(t,C[c][1]);if(c==='ops')for(const t of KIT_OPS)add(t,C[c][1]);
+    for(const b of KITS[k])if(b.c===c&&!b.hide)add(b.t,C[c][1]);if(c==='vars')for(const t of KIT_VARS)add(t,C[c][1])}
+  const ch=$('#sbKitSamples');ch.textContent='';for(const n in KIT_SAMPLE[k]){const b=document.createElement('button');b.type='button';b.textContent=n;b.onclick=()=>{$('#sbSrc').value=k==='scratch'&&lang!=='en'?sbToLang(KIT_SAMPLE[k][n],lang):KIT_SAMPLE[k][n];sbPrev()};ch.append(b)}}
+/* cả chương trình Scratch tiếng Anh → ngôn ngữ khác (giữ thụt lề do scratchblocks viết lại) */
+function sbToLang(src,lang){try{const SB=window.scratchblocks,doc=SB.parse(src,{languages:['en']});doc.translate(SB.allLanguages[lang]);return doc.stringify()}catch(e){return src}}
+function sbSetKit(k){sbKit=k;$('#sbKit').value=k;$('#sbLang').disabled=k!=='scratch';if(k!=='scratch')$('#sbLang').value='en';sbPalette()}
+$('#sbKit').addEventListener('change',()=>{const cur=$('#sbSrc').value.trim(),k=$('#sbKit').value;const isSample=!cur||Object.values(SB_SAMPLE).includes(cur)||Object.values(KIT_SAMPLE).some(o=>Object.values(o).includes(cur));
+  sbSetKit(k);if(isSample)$('#sbSrc').value=k==='scratch'?SB_SAMPLE.en:Object.values(KIT_SAMPLE[k])[0];sbPrev()});
+$('#sbPyBtn').onclick=()=>{const src=$('#sbSrc').value,py=progPython(src,sbKit);$('#sbPy').textContent=py;$('#sbPyBox').hidden=false};
+$('#sbPyBoard').onclick=()=>{const py=$('#sbPy').textContent;if(!py)return;const d={type:'code',lang:'python',src:py,title:sbKit==='spike'?'spike.py':'vexcode.py',th:'sang',num:true,fs:16},b=codeBase(d),c=center();
+  const o={...d,x:c.x+40,y:c.y-b.h/2,w:b.w,h:b.h};fitNew(o);objs.push(o);commit();toast('Đã chèn mã Python cạnh khối lệnh.')};
+$('#sbSim').onclick=()=>{const src=$('#sbSrc').value,k=sbKit;sbDlg.close();openRobot(null,k,src)};
+/* ---------- hộp thoại sân mô phỏng ---------- */
+const rbDlg=$('#robotDlg');let rbEdit=null,rbT=0;
+function rbDraft(){return{type:'robot',kit:$('#rbKit').value,src:$('#rbSrc').value,field:$('#rbField').value,st:+$('#rbStep').value||0,color:'ink'}}
+function rbPrev(){const d=rbDraft(),n=robotSteps(d).steps.length;$('#rbStep').max=n-1;if(+$('#rbStep').value>n-1)$('#rbStep').value=n-1;d.st=+$('#rbStep').value;$('#rbStepL').textContent='Bước '+(d.st+1)+'/'+n;
+  const cvp=$('#rbPrev'),R=cvp.getBoundingClientRect();if(!R.width)return;cvp.width=R.width*dpr;cvp.height=R.height*dpr;const c=cvp.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.fillStyle=theme.paper;c.fillRect(0,0,R.width,R.height);
+  const k=Math.min((R.width-10)/ROBOT_BW,(R.height-10)/ROBOT_BH);drawRobot(c,{...d,x:(R.width-ROBOT_BW*k)/2,y:5,w:ROBOT_BW*k,h:ROBOT_BH*k})}
+function rbSamples(){const ch=$('#rbSamples');ch.textContent='';const k=$('#rbKit').value;for(const n in KIT_SAMPLE[k]){const b=document.createElement('button');b.type='button';b.textContent=n;b.onclick=()=>{$('#rbSrc').value=KIT_SAMPLE[k][n];$('#rbField').value=n in FIELD_SAMPLE?FIELD_SAMPLE[n]:'';$('#rbStep').value=0;rbPrev()};ch.append(b)}}
+/* nhãn ô sân, gợi ý theo bộ khối: robot (cm) hay sân khấu Scratch (toạ độ x, y) */
+function rbLabels(){const s=$('#rbKit').value==='scratch';
+  $('#rbFieldL').textContent=s?'Sân khấu 480 × 360 (gốc ở giữa): xuất phát x y hướng · màu đỏ x y rộng cao (x y là góc trên trái) · trả lời … (câu trả lời cho ask)':'Sân (cm): sân R C · xuất phát x y hướng(°) · hộp x y rộng cao · màu đỏ x y rộng cao';
+  $('#rbHint').textContent=s?'Hướng như Scratch: 90 là sang phải, 0 là lên trên. Mô phỏng: chuyển động, bút vẽ, nói / nghĩ, kích thước, trang phục, biến, danh sách, hỏi đáp, phát tin. Viết khối tiếng Anh hoặc tiếng Việt.':'Hướng 0° là sang phải, 90° là xuống dưới. Mô phỏng: đi, quay, lặp, chờ, nếu…thì, lặp đến khi; cảm biến khoảng cách, màu, va chạm. Robot dừng khi chạm vật cản.'}
+function openRobot(o,kit,src){rbEdit=o||null;const k=o?o.kit:kit||'spike',first=Object.keys(KIT_SAMPLE[k])[0];$('#rbKit').value=k;$('#rbSrc').value=o?o.src:src||KIT_SAMPLE[k][first];rbLabels();if(k==='scratch')getSb().catch(()=>{});
+  $('#rbField').value=o?o.field:(src?(k==='scratch'?'':FIELD_SAMPLE['Tránh vật cản']):FIELD_SAMPLE[first]||'');$('#rbStep').value=0;$('#rbOk').textContent=o?'Cập nhật':'Chèn vào trang';rbSamples();rbDlg.showModal();requestAnimationFrame(rbPrev)}
+for(const id of['rbSrc','rbField','rbStep'])$('#'+id).addEventListener('input',rbPrev);
+$('#rbKit').addEventListener('change',()=>{rbLabels();rbSamples();$('#rbSamples').firstChild&&$('#rbSamples').firstChild.click()});
+$('#rbPlay').onclick=()=>{if(rbT){clearInterval(rbT);rbT=0;$('#rbPlay').textContent='▶ Chạy';return}const s=$('#rbStep');if(+s.value>=+s.max)s.value=0;$('#rbPlay').textContent='❚❚ Dừng';
+  rbT=setInterval(()=>{if(!rbDlg.open||+s.value>=+s.max){clearInterval(rbT);rbT=0;$('#rbPlay').textContent='▶ Chạy';return}s.value=+s.value+1;rbPrev()},500)};
+$('#rbCancel').onclick=()=>rbDlg.close();
+$('#robotForm').addEventListener('submit',()=>{clearInterval(rbT);rbT=0;const d=rbDraft();d.st=0;
+  if(rbEdit){Object.assign(rbEdit,d)}else{const c=center(),o={...d,w:ROBOT_BW,h:ROBOT_BH};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
+/* mục trong bảng Tin học và ＋ Chèn */
+{const b=document.createElement('button');b.type='button';b.className='item';b.textContent='🤖  Mô phỏng robot (LEGO SPIKE Prime, VEX V5)';b.onclick=()=>{closePops();openRobot()};$('#tinList').append(b);TIN.push(['🤖','Mô phỏng robot (LEGO SPIKE Prime, VEX V5)',()=>openRobot()])}
 /* ---------- thanh công cụ gọn: một hàng ----------
    Trước: 39 nút trên 2 – 4 hàng (16 – 26% chiều cao màn hình). Nay: ☰ ↶ ↷ trình chiếu, cài đặt | công cụ | 4 màu nhanh, 🎨 đủ màu,
    chấm độ dày, nét đứt | ∑ ƒ ＋ Chèn | tên bài, trang. Lưu, mở, dán, thêm trang, ghi hình vào trình đơn ☰ (nút ghi hình hiện lại khi đang ghi).
