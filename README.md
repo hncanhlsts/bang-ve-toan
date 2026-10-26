@@ -18,9 +18,12 @@ Bảng vẽ dạy học môn Toán chạy ngay trên trình duyệt.
   bảng xét dấu, trục số, biểu đồ Ven, khối hình không gian, thống kê, mạch điện, thấu kính, ký hiệu SGK Lý – Hoá – Sinh, sơ đồ lai, đặt tính, minh hoạ Tiểu học
 - Cho mọi môn: bảng, biểu đồ từ số liệu (cột, đường, tròn, miền, cột + đường, điểm có đường xu hướng), phương trình hoá học,
   hình dụng cụ thí nghiệm Lý, Hoá, mũi tên chú thích, ghi chú dán, con dấu chấm bài, gọi tên ngẫu nhiên, đồng hồ đếm ngược
+- Tin học: khối mã nguồn tô màu (Python, C++, Pascal, SQL, HTML, CSS, JavaScript, mã giả), chạy thử và chạy từng bước Python, chạy C++ (bản web);
+  sơ đồ khối (sinh từ mã Python), hệ đếm, bảng chân trị, mạch cổng logic, bảng tính có công thức như Excel, thuật toán sắp xếp – tìm kiếm chạy từng bước,
+  ngăn xếp, hàng đợi, danh sách liên kết, cây, đồ thị BFS – DFS – Dijkstra, SQL và sơ đồ quan hệ, khối lệnh Scratch, mạng máy tính
 - Máy tính khoa học bố cục fx-580VN X (MENU, SETUP, CALC, SOLVE, số phức, ma trận, vectơ, thống kê, phân phối…)
 - Trình chiếu: bút laser, đèn rọi, che màn, đồng hồ; ghi hình bài giảng; mở PDF làm trang nền; xuất PDF, PNG
 
-Phiên bản 2.6.0.
+Phiên bản 2.7.0.
 
 Tác giả: Hoàng Ngọc Cảnh, giáo viên trường THCS - THPT Đinh Thiện Lý (canhld@gmail.com).
