@@ -892,7 +892,7 @@ print(s)</textarea><button type="button" class="btn" id="flGen">Sinh sơ đồ</
   </div></dialog>
 
   <dialog id="sbDlg" class="wide"><form class="dlg" method="dialog" id="sbForm" novalidate>
-    <div class="fhead"><h2>Khối lệnh Scratch</h2><select id="sbLang" aria-label="Ngôn ngữ khối lệnh"><option value="vi">Tiếng Việt</option><option value="en">Tiếng Anh</option></select></div>
+    <div class="fhead"><h2>Khối lệnh Scratch</h2><select id="sbLang" aria-label="Ngôn ngữ khối lệnh"><option value="en">English (chuẩn Scratch)</option><option value="vi">Tiếng Việt</option></select></div>
     <div class="tvwrap"><div class="tvprops"><label class="tvf"><span>Viết khối lệnh, mỗi dòng một khối; thụt lề cho khối bên trong vòng lặp, rẽ nhánh</span><textarea id="sbSrc" rows="14" class="mono" spellcheck="false"></textarea></label>
       <p class="hint">Giá trị số trong ( ), chữ trong [ ], chọn trong danh sách viết [tên v]. Cú pháp theo scratchblocks (scratchblocks.github.io).</p><div class="err" id="sbErr"></div></div>
       <div class="tvside"><canvas id="sbPrev"></canvas></div></div>
@@ -4938,7 +4938,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.7.0';
+const APPVER='2.7.1';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
@@ -5490,6 +5490,9 @@ $('#mxRegion').onclick=()=>{closePops();openTvo(tvNew('region'))};
 /* ---------- Tin học: khối mã nguồn tô màu cú pháp; chạy thử, chạy từng bước (chỉ bản web) ----------
    Đối tượng {type:'code', lang, src, fs, hl:'3,5-7' (dòng tô sáng), title, th:'sang'|'toi', num (hiện số dòng), x,y,w,h}.
    Chạy Python bằng Pyodide, C++ bằng JSCPP, tải từ CDN khi cần: bản cài trên Windows không kèm (giữ bộ cài nhẹ). */
+/* hình Tin học mới chèn: thu nhỏ (giữ tỉ lệ, quanh tâm) cho vừa tầm nhìn — không rộng quá 40% trang, không cao quá 45% vùng đang thấy;
+   hình nhỏ sẵn giữ nguyên, nên khỏi phải kéo góc thu nhỏ sau khi chèn */
+function fitNew(o){const vh=H?H/view.s:PH,k=Math.min(1,PW*.4/o.w,vh*.45/o.h);if(k>=1)return o;const cx=o.x+o.w/2,cy=o.y+o.h/2;o.w*=k;o.h*=k;o.x=cx-o.w/2;o.y=cy-o.h/2;return o}
 const CODE_LANGS={python:'Python',cpp:'C++',pascal:'Pascal',js:'JavaScript',sql:'SQL',html:'HTML',css:'CSS',pseudo:'Mã giả (tiếng Việt)',text:'Văn bản thường'};
 const W_=s=>new Set(s.split(' '));
 const CODE_KW={
@@ -5590,7 +5593,7 @@ $('#cdSrc').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();
 $('#cdCancel').onclick=()=>cdDlg.close();
 $('#codeForm').addEventListener('submit',()=>{const d=cdDraft(),b=codeBase(d);
   if(cdEdit){const k=cdEdit.w/codeBase(cdEdit).w;Object.assign(cdEdit,d,{w:b.w*k,h:b.h*k})}
-  else{const c=center(),o={...d,x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h};objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
+  else{const c=center(),o={...d,x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h};fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
 /* ---------- chạy mã (bản web) ---------- */
 const LIBS={pyodide:'https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js',jscpp:'https://cdn.jsdelivr.net/gh/felixhao28/JSCPP@76e3534f04abf9c2547aa73ddca275e8935bed38/dist/JSCPP.es5.min.js'};
 const libP={};
@@ -5654,10 +5657,10 @@ $('#cdPrevStep').onclick=()=>{if(cdTr&&cdTr.i>0){cdTr.i--;cdTraceShow()}};$('#cd
 /* bảng theo dõi biến lên bảng: mỗi bước một hàng (gộp các bước liền nhau giống hệt nhau) */
 $('#cdTraceBoard').onclick=()=>{if(!cdTr)return;const names=[];for(const s of cdTr.steps)for(const k in s[1])if(!names.includes(k))names.push(k);
   const rows=[['Bước','Dòng',...names]];let prev='';cdTr.steps.forEach((s,i)=>{const r=[String(s[0]),...names.map(k=>s[1][k]===undefined?'':String(s[1][k]).replace(/^'(.*)'$/,'$1'))],key=r.join('|');if(key!==prev){rows.push([String(rows.length),...r]);prev=key}});
-  const tb={rows:rows.slice(0,41),head:true,col1:false,fs:18},b=tableBase(tb),c=center(),o={type:'table',x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h,color:'ink',...tb};objs.push(o);cdDlg.close();setTool('select');sel.clear();sel.add(o);commit();
+  const tb={rows:rows.slice(0,41),head:true,col1:false,fs:18},b=tableBase(tb),c=center(),o={type:'table',x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h,color:'ink',...tb};fitNew(o);objs.push(o);cdDlg.close();setTool('select');sel.clear();sel.add(o);commit();
   toast('Đã đưa bảng theo dõi biến lên bảng'+(rows.length>41?' (40 bước đầu)':'')+'.')};
 $('#cdOutBoard').onclick=()=>{const t=$('#cdOut').textContent.trim();if(!t)return;const d={type:'code',lang:'text',src:t,title:'Kết quả',th:'toi',num:false,fs:18},b=codeBase(d),c=center();
-  const o={...d,x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h};objs.push(o);cdDlg.close();setTool('select');sel.clear();sel.add(o);commit()};
+  const o={...d,x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h};fitNew(o);objs.push(o);cdDlg.close();setTool('select');sel.clear();sel.add(o);commit()};
 /* xem trang HTML: khung riêng, không chạy được mã ra ngoài khung */
 function openHtmlPreview(src){$('#htmlFrame').srcdoc=src;$('#htmlDlg').showModal()}
 $('#htmlClose').onclick=()=>$('#htmlDlg').close();
@@ -5779,7 +5782,7 @@ $('#flGen').onclick=()=>{const s=$('#flPy').value.trim();if(!s){toast('Dán đo�
 $('#flCancel').onclick=()=>flDlg.close();
 $('#flowForm').addEventListener('submit',()=>{const B=flowBounds(flD),k=flEdit?flEdit.w/flowBounds(flEdit).w:1.3;
   if(flEdit){Object.assign(flEdit,{nodes:flD.nodes,edges:flD.edges,fs:flD.fs});flEdit.w=B.w*k;flEdit.h=B.h*k}
-  else{const c=center(),o={type:'flow',nodes:flD.nodes,edges:flD.edges,fs:flD.fs,color:'ink',w:B.w*k,h:B.h*k};o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
+  else{const c=center(),o={type:'flow',nodes:flD.nodes,edges:flD.edges,fs:flD.fs,color:'ink',w:B.w*k,h:B.h*k};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
 /* ---------- Tin học: hệ đếm, phép toán nhị phân, bảng chân trị, mạch cổng logic ----------
    nbase {kind: chia (thập phân → cơ số b bằng chia liên tiếp) | khai (cơ số b → thập phân, khai triển luỹ thừa) | nhom (2 ↔ 8, 16 theo nhóm bit) | cong / tru (cộng, trừ nhị phân có nhớ), n, b, a2, b2}
    gates {expr, vals:{A:0|1}}: mạch vẽ tự động từ biểu thức logic; bấm vào đầu vào (thanh dưới hình) để đổi 0 / 1, dây có điện tô đỏ. */
@@ -5897,7 +5900,7 @@ function openNbase(o,kind){nbEdit=o||null;nbKind=o?o.kind:kind||'chia';$('#nbN')
 for(const id of['nbN','nbB','nbA','nbB2'])$('#'+id).addEventListener('input',nbPrev);
 $('#nbCancel').onclick=()=>nbDlg.close();
 $('#nbForm').addEventListener('submit',()=>{const d=nbDraft(),L=nbaseLayout(d),k=1.2;
-  if(nbEdit){const kk=nbEdit.w/nbaseLayout({...nbEdit}).W;Object.assign(nbEdit,d,{w:L.W*kk,h:L.H*kk})}else{const c=center(),o={...d,w:L.W*k,h:L.H*k};o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
+  if(nbEdit){const kk=nbEdit.w/nbaseLayout({...nbEdit}).W;Object.assign(nbEdit,d,{w:L.W*kk,h:L.H*kk})}else{const c=center(),o={...d,w:L.W*k,h:L.H*k};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
 /* bảng chân trị → bảng thường (sửa lại được từ hộp thoại này) */
 const ltDlg=$('#logicDlg');let ltEdit=null;
 function ltPrev(){const e=$('#ltExpr').value,err=$('#ltErr');let rows=null;try{rows=truthRows(e,$('#ltInter').checked);err.textContent=''}catch(x){err.textContent=x.message}
@@ -5910,9 +5913,9 @@ for(const[l,v]of[['∧ (và)','∧'],['∨ (hoặc)','∨'],['¬ (phủ định)
 $('#ltCancel').onclick=()=>ltDlg.close();
 $('#logicForm').addEventListener('submit',e=>{const ex=$('#ltExpr').value;let rows;try{rows=truthRows(ex,$('#ltInter').checked)}catch(x){e.preventDefault();$('#ltErr').textContent=x.message;return}
   if($('#ltMode').value==='bang'){const tb={rows,head:true,col1:false,fs:20,gen:'truth',expr:ex,inter:$('#ltInter').checked},b=tableBase(tb);
-    if(ltEdit&&ltEdit.type==='table'){const k=ltEdit.w/tableBase(ltEdit).w;Object.assign(ltEdit,tb,{w:b.w*k,h:b.h*k})}else{if(ltEdit)objs=objs.filter(x=>x!==ltEdit);const c=center(),o={type:'table',x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h,color:'ink',...tb};objs.push(o);setTool('select');sel.clear();sel.add(o)}}
+    if(ltEdit&&ltEdit.type==='table'){const k=ltEdit.w/tableBase(ltEdit).w;Object.assign(ltEdit,tb,{w:b.w*k,h:b.h*k})}else{if(ltEdit)objs=objs.filter(x=>x!==ltEdit);const c=center(),o={type:'table',x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h,color:'ink',...tb};fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}}
   else{const g={type:'gates',expr:ex,vals:ltEdit&&ltEdit.vals||{},color:'ink'},s=gatesSize(g);
-    if(ltEdit&&ltEdit.type==='gates'){const k=ltEdit.w/gatesSize(ltEdit).w;Object.assign(ltEdit,g,{w:s.w*k,h:s.h*k})}else{if(ltEdit)objs=objs.filter(x=>x!==ltEdit);const c=center(),o={...g,w:s.w*1.3,h:s.h*1.3};o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);setTool('select');sel.clear();sel.add(o)}}
+    if(ltEdit&&ltEdit.type==='gates'){const k=ltEdit.w/gatesSize(ltEdit).w;Object.assign(ltEdit,g,{w:s.w*k,h:s.h*k})}else{if(ltEdit)objs=objs.filter(x=>x!==ltEdit);const c=center(),o={...g,w:s.w*1.3,h:s.h*1.3};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}}
   commit()});
 /* thanh bật / tắt đầu vào của mạch đang chọn */
 function placeGatesBar(){const bar=$('#gtBar');if(tool!=='select'||sel.size!==1||[...sel][0].type!=='gates'||drag){bar.hidden=true;return}const o=[...sel][0];let L;try{L=gatesLayout(o)}catch(_){bar.hidden=true;return}
@@ -6040,7 +6043,7 @@ $('#shFill').onclick=()=>{const f=shD.cells[shCur];if(!f||!String(f).startsWith(
   shD.rows=Math.max(shD.rows,r1,r2);shD.cols=Math.max(shD.cols,c1+1,c2+1);shGrid();shPrev();toast('Đã chép công thức của '+shCur+' sang '+t+'. Xem ở chế độ "Hiện công thức".')};
 $('#shCancel').onclick=()=>shDlg.close();
 $('#sheetForm').addEventListener('submit',()=>{const d={type:'sheet',cols:shD.cols,rows:shD.rows,cells:shD.cells,fs:shD.fs||18,selC:shCur,showF:$('#shShowF').checked},L=shLayout(d);
-  if(shEdit){const k=shEdit.w/shLayout(shEdit).w;Object.assign(shEdit,d,{w:L.w*k,h:L.h*k})}else{const c=center(),o={...d,w:L.w*1.1,h:L.h*1.1};o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
+  if(shEdit){const k=shEdit.w/shLayout(shEdit).w;Object.assign(shEdit,d,{w:L.w*k,h:L.h*k})}else{const c=center(),o={...d,w:L.w*1.1,h:L.h*1.1};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
 /* ---------- Tin học: thuật toán chạy từng bước, cấu trúc dữ liệu, đồ thị (BFS, DFS, Dijkstra) ----------
    {type:'algo', kind, data, target, ops, edges, start, st (bước đang xem), x,y,w,h}
    Mỗi loại sinh sẵn danh sách trạng thái; trên bảng chọn hình rồi bấm ◀ ▶ (hoặc ▶▶ chạy tự động) ở thanh dưới hình. */
@@ -6172,7 +6175,7 @@ $('#agKind').addEventListener('change',()=>{const k=$('#agKind').value,f=algoFam
 for(const id of['agData','agTarget','agOps','agEdges','agStart','agStep'])$('#'+id).addEventListener('input',agPrev);
 $('#agCancel').onclick=()=>agDlg.close();
 $('#algoForm').addEventListener('submit',()=>{const d=agDraft(),[BW,BH]=ALGO_BASE[algoFam(d.kind)];
-  if(agEdit){const k=agEdit.w/ALGO_BASE[algoFam(agEdit.kind)][0];Object.assign(agEdit,d,{w:BW*k,h:BH*k})}else{const c=center(),o={...d,w:BW*1.2,h:BH*1.2};o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
+  if(agEdit){const k=agEdit.w/ALGO_BASE[algoFam(agEdit.kind)][0];Object.assign(agEdit,d,{w:BW*k,h:BH*k})}else{const c=center(),o={...d,w:BW*1.2,h:BH*1.2};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
 /* ---------- Tin học (mở rộng): SQL, sơ đồ quan hệ, khối lệnh Scratch, hình mạng máy tính, chạy dự án Scratch (bản web),
    chụp màn hình vào bảng, viết đè lên màn hình máy tính (bản Windows), hiện phím đang bấm ---------- */
 const DESK_LIB=!!window.desktop;
@@ -6203,9 +6206,9 @@ $('#sqRun').onclick=async()=>{const o=$('#sqOut');o.textContent='Đang chạy…
     const t=r[r.length-1];o.innerHTML='<table><tr>'+t.columns.map(c=>'<th>'+escX(c)+'</th>').join('')+'</tr>'+t.values.slice(0,100).map(v=>'<tr>'+v.map(x=>'<td>'+escX(x===null?'NULL':x)+'</td>').join('')+'</tr>').join('')+'</table><p class="hint">'+t.values.length+' dòng</p>'}
   catch(e){o.textContent='⚠ '+sqlErrVi(e.message||e)}};
 $('#sqBoard').onclick=()=>{if(!sqRes||!sqRes.r.length){toast('Bấm "Chạy" trước.');return}const t=sqRes.r[sqRes.r.length-1],fmt=x=>x===null?'NULL':typeof x==='number'?String(Math.round(x*1000)/1000).replace('.',','):String(x);
-  const tb={rows:[t.columns,...t.values.slice(0,40).map(v=>v.map(fmt))],head:true,fs:18},b=tableBase(tb),c=center(),o={type:'table',x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h,color:'ink',...tb};objs.push(o);sqDlg.close();setTool('select');sel.clear();sel.add(o);commit()};
+  const tb={rows:[t.columns,...t.values.slice(0,40).map(v=>v.map(fmt))],head:true,fs:18},b=tableBase(tb),c=center(),o={type:'table',x:c.x-b.w/2,y:c.y-b.h/2,w:b.w,h:b.h,color:'ink',...tb};fitNew(o);objs.push(o);sqDlg.close();setTool('select');sel.clear();sel.add(o);commit()};
 $('#sqErd').onclick=async()=>{try{const{meta}=await sqlRun($('#sqSchema').value,'SELECT 1');if(!meta.length){toast('Chưa có bảng nào (viết lệnh CREATE TABLE).');return}
-  const d={type:'erd',tabs:meta,fs:18},L=erdLayout(d),c=center(),o={...d,w:L.w,h:L.h,color:'ink'};o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);sqDlg.close();setTool('select');sel.clear();sel.add(o);commit()}catch(e){toast(sqlErrVi(e.message||e))}};
+  const d={type:'erd',tabs:meta,fs:18},L=erdLayout(d),c=center(),o={...d,w:L.w,h:L.h,color:'ink'};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);sqDlg.close();setTool('select');sel.clear();sel.add(o);commit()}catch(e){toast(sqlErrVi(e.message||e))}};
 $('#sqClose').onclick=()=>sqDlg.close();
 /* sơ đồ quan hệ: mỗi bảng một khung, khoá chính in đậm có dấu 🔑, khoá ngoài nối sang bảng được tham chiếu */
 function erdLayout(o){const fs=o.fs||18,box=[];let x=0,y=0,rowH=0;mctx.font=fs+'px '+FONT;const perRow=Math.ceil(Math.sqrt(o.tabs.length));
@@ -6227,9 +6230,12 @@ function drawErd(c,o){const L=erdLayout(o),ink=res(o.color||'ink');c.save();c.tr
 let sbP=null;
 function getSb(){return sbP||(sbP=loadLib(LIBS2.sb).then(()=>loadLib(LIBS2.sbvi)).then(()=>window.scratchblocks).catch(e=>{sbP=null;throw e}))}
 const sbCache=new Map();
-function sbImg(o){const key=o.src+'|'+(o.lang||'vi');let e=sbCache.get(key);if(e)return e;e={ready:false};sbCache.set(key,e);
-  getSb().then(SB=>{const doc=SB.parse(o.src,{languages:['en',o.lang||'vi']}),svg=SB.render(doc,{style:'scratch3',scale:1});svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
-    const w=parseFloat(svg.getAttribute('width')),h=parseFloat(svg.getAttribute('height'));e.w=w;e.h=h;const s=new XMLSerializer().serializeToString(svg).replace(/<svg([^>]*?)width="[^"]*"\s*height="[^"]*"/,'<svg$1width="'+w*2+'" height="'+h*2+'"');
+/* khối lệnh tô màu bằng lớp CSS: phải xuất SVG kèm bảng màu (exportSVGString), nếu không ảnh mất màu, khối nào cũng đen */
+function sbImg(o){const lang=o.lang||'en',key=o.src+'|'+lang;let e=sbCache.get(key);if(e)return e;e={ready:false};sbCache.set(key,e);
+  getSb().then(SB=>{const view=SB.newView(SB.parse(o.src,{languages:lang==='en'?['en']:['en',lang]}),{style:'scratch3',scale:1}),svg=view.render();
+    const w=parseFloat(svg.getAttribute('width')),h=parseFloat(svg.getAttribute('height'));e.w=w;e.h=h;let s=view.exportSVGString();
+    if(!/^<svg[^>]*xmlns=/.test(s))s=s.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"');if(!/^<svg[^>]*viewBox=/.test(s))s=s.replace('<svg','<svg viewBox="0 0 '+w+' '+h+'"');
+    s=s.replace(/^(<svg[^>]*?) width="[^"]*"/,'$1 width="'+w*2+'"').replace(/^(<svg[^>]*?) height="[^"]*"/,'$1 height="'+h*2+'"');
     const im=new Image();im.onload=()=>{e.ready=true;e.img=im;requestDraw();if(sbDlg.open)sbPrev()};im.onerror=()=>{e.err='Không dựng được khối lệnh'};im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s)}).catch(err=>{e.err=err.message;requestDraw();if(sbDlg.open)sbPrev()});return e}
 function drawScratch(c,o){const e=sbImg(o);if(e.ready)c.drawImage(e.img,o.x,o.y,o.w,o.h);else{c.save();c.strokeStyle=theme.muted;c.setLineDash([6,4]);c.strokeRect(o.x,o.y,o.w,o.h);c.fillStyle=theme.muted;c.font='14px '+FONT;c.fillText(e.err||'Đang dựng khối lệnh Scratch…',o.x+6,o.y+18);c.restore()}}
 const sbDlg=$('#sbDlg');let sbEdit=null;
@@ -6237,12 +6243,13 @@ const SB_SAMPLE={vi:'khi bấm vào lá cờ xanh\nđặt [điểm v] thành (0)
   en:'when flag clicked\nset [score v] to (0)\nrepeat (10)\n  move (10) steps\n  change [score v] by (1)\nend\nsay [Done!] for (2) seconds'};
 function sbPrev(){const d={src:$('#sbSrc').value,lang:$('#sbLang').value},e=sbImg(d),cvp=$('#sbPrev'),R=cvp.getBoundingClientRect();if(!R.width)return;cvp.width=R.width*dpr;cvp.height=R.height*dpr;const c=cvp.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
   c.fillStyle='#fff';c.fillRect(0,0,R.width,R.height);$('#sbErr').textContent=e.err||'';if(e.ready){const k=Math.min((R.width-16)/e.w,(R.height-16)/e.h,1.6);c.drawImage(e.img,8,8,e.w*k,e.h*k)}}
-function openScratch(o){sbEdit=o||null;$('#sbLang').value=o?o.lang||'vi':'vi';$('#sbSrc').value=o?o.src:SB_SAMPLE.vi;$('#sbOk').textContent=o?'Cập nhật':'Chèn vào trang';sbDlg.showModal();requestAnimationFrame(sbPrev)}
+/* mặc định tiếng Anh như Scratch chuẩn; giáo viên cần thì chọn tiếng Việt */
+function openScratch(o){sbEdit=o||null;$('#sbLang').value=o?o.lang||'en':'en';$('#sbSrc').value=o?o.src:SB_SAMPLE[$('#sbLang').value];$('#sbOk').textContent=o?'Cập nhật':'Chèn vào trang';sbDlg.showModal();requestAnimationFrame(sbPrev)}
 $('#sbSrc').addEventListener('input',()=>{clearTimeout(sbDlg._t);sbDlg._t=setTimeout(sbPrev,250)});
 $('#sbLang').addEventListener('change',()=>{const cur=$('#sbSrc').value.trim();if(!cur||Object.values(SB_SAMPLE).includes(cur))$('#sbSrc').value=SB_SAMPLE[$('#sbLang').value];sbPrev()});
 $('#sbCancel').onclick=()=>sbDlg.close();
 $('#sbForm').addEventListener('submit',e=>{const d={type:'scratch',src:$('#sbSrc').value,lang:$('#sbLang').value},im=sbImg(d);if(!im.ready){e.preventDefault();toast(im.err||'Khối lệnh chưa dựng xong, chờ một chút.');return}
-  if(sbEdit){const k=sbEdit.w/(sbEdit.bw||sbEdit.w);Object.assign(sbEdit,d,{bw:im.w,w:im.w*k,h:im.h*k})}else{const c=center(),k=1.6,o={...d,bw:im.w,w:im.w*k,h:im.h*k};o.x=c.x-o.w/2;o.y=c.y-o.h/2;objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
+  if(sbEdit){const k=sbEdit.w/(sbEdit.bw||sbEdit.w);Object.assign(sbEdit,d,{bw:im.w,w:im.w*k,h:im.h*k})}else{const c=center(),k=1.6,o={...d,bw:im.w,w:im.w*k,h:im.h*k};o.x=c.x-o.w/2;o.y=c.y-o.h/2;fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o)}commit()});
 /* chạy dự án Scratch đã chia sẻ (bản web): trình phát TurboWarp */
 function openScratchRun(){closePops();if(DESK_LIB){toast('Chạy dự án Scratch chỉ có ở bản web (cần mạng): https://hncanhlsts.github.io/bang-ve-toan/');return}$('#srDlg').showModal()};
 $('#srGo').onclick=()=>{const m=$('#srId').value.match(/(\d{5,})/);if(!m){toast('Dán đường link dự án Scratch (scratch.mit.edu/projects/…) hoặc mã số dự án.');return}$('#srFrame').src='https://turbowarp.org/'+m[1]+'/embed?autoplay';$('#srFrame').hidden=false};
@@ -6277,7 +6284,7 @@ async function grabScreenWeb(){const st=await navigator.mediaDevices.getDisplayM
   const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);return c.toDataURL('image/png')}finally{st.getTracks().forEach(t=>t.stop())}}
 function imageToBoard(url,newPg,doCrop){const im=new Image();im.onload=()=>{const k=Math.min(1,2000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
   const id='a'+Date.now().toString(36)+Math.floor(Math.random()*1e4);assets[id]=c.toDataURL('image/webp',.9);if(newPg)newPage();
-  const w=Math.min(PW-40,c.width),h=w*c.height/c.width,ct=center(),o={type:'image',x:newPg?20:ct.x-w/2,y:newPg?20:ct.y-h/2,w,h,a:id};objs.push(o);setTool('select');sel.clear();sel.add(o);commit();
+  const w=Math.min(PW-40,c.width),h=w*c.height/c.width,ct=center(),o={type:'image',x:newPg?20:ct.x-w/2,y:newPg?20:ct.y-h/2,w,h,a:id};fitNew(o);objs.push(o);setTool('select');sel.clear();sel.add(o);commit();
   if(doCrop)setTimeout(()=>{const r=getImg(id);const go=()=>{if(r.ready)openCrop(o);else setTimeout(go,60)};go()},50)};im.src=url}
 $('#mShot').onclick=async()=>{closePops();try{const url=DESK_LIB&&window.desktop.captureScreen?await window.desktop.captureScreen():await grabScreenWeb();imageToBoard(url,false,true);toast('Kéo trên ảnh để chọn vùng cần giữ; bấm Huỷ để giữ cả màn hình.')}catch(e){if(e&&e.name!=='NotAllowedError')toast('Không chụp được màn hình: '+(e.message||e))}};
 /* ---------- viết đè lên màn hình máy tính (bản Windows): cửa sổ trong suốt phủ màn hình ---------- */
