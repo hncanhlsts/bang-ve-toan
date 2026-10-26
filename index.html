@@ -192,6 +192,12 @@ dialog.wide{width:min(980px,calc(100% - 32px))}
 @media (max-width:1500px){#title{display:none}#tc .dot{display:none}}
 /* màn hình hẹp (máy tính bảng): hàng 1 là nút chung + trang, hàng 2 là công cụ — 2 hàng thay vì 3 */
 @media (min-width:641px) and (max-width:1100px){#tc{order:2}#tr{order:3;flex:1 1 100%}}
+#popMenu{min-width:300px;gap:2px}
+#popMenu .mgrp{font-weight:600;gap:10px}#popMenu .mgrp .mlb{flex:1}#popMenu .mgrp .mar{transition:transform .15s;color:var(--muted)}
+#popMenu .mgrp[aria-expanded="true"] .mar{transform:rotate(90deg)}#popMenu .mgrp[aria-expanded="true"]{background:var(--hover)}
+#popMenu .msub{display:flex;flex-direction:column;padding-left:30px;margin-bottom:4px}#popMenu .msub[hidden]{display:none}
+.pcpad{height:220px;border:2px dashed var(--accent);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);font:600 18px var(--ui);touch-action:none;user-select:none;background:var(--paper)}
+.pcpad.gum{border-color:#e53935}.pcstep{font:600 16px var(--ui);margin:4px 0}
 /* loại nét bút, thanh thao tác */
 .penTypes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .penT{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:4px;cursor:pointer;color:var(--ink);font:12px var(--ui)}
@@ -600,8 +606,9 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
     <div class="seg" id="erSize"><button type="button" data-s="s">Nhỏ</button><button type="button" data-s="m">Vừa</button><button type="button" data-s="l">To</button></div>
     <h3>Lau bằng lòng bàn tay</h3>
     <div class="seg" id="erPalm"><button type="button" data-p="multi">Vùng chạm lớn hoặc từ 3 điểm</button><button type="button" data-p="size">Chỉ vùng chạm lớn</button><button type="button" data-p="off">Tắt</button></div>
-    <div class="seg" id="erPalmS" title="Độ nhạy: độ rộng vùng chạm coi là lòng bàn tay"><button type="button" data-v="25">Nhạy</button><button type="button" data-v="38">Vừa</button><button type="button" data-v="60">Ít nhạy</button></div>
+    <div class="seg" id="erPalmS" title="Độ nhạy: độ rộng vùng chạm coi là lòng bàn tay"><button type="button" data-v="40">Nhạy</button><button type="button" data-v="60">Vừa</button><button type="button" data-v="90">Ít nhạy</button></div>
     <button type="button" class="btn" id="erTest">Kiểm tra màn hình cảm ứng…</button>
+    <button type="button" class="btn" id="erPenCal">Dò đầu bút / đầu gôm của bảng…</button>
     <button type="button" class="btn" id="erClear">Xoá hết nét trên trang…</button>
   </div>
   <div class="pop" id="popMore" hidden>
@@ -927,6 +934,14 @@ print(s)</textarea><button type="button" class="btn" id="flGen">Sinh sơ đồ</
     <iframe id="srFrame" hidden title="Trình chạy Scratch" allowfullscreen></iframe>
     <p class="hint">Dự án phải được chia sẻ công khai trên scratch.mit.edu. Trình phát: TurboWarp.</p>
     <div class="row end"><button type="button" class="btn" id="srClose">Đóng</button></div></div></dialog>
+
+  <dialog id="pcDlg"><div class="dlg">
+    <h2>Dò bút của bảng tương tác</h2>
+    <p class="hint" id="pcCur"></p>
+    <p id="pcStepT" class="pcstep"></p>
+    <div id="pcPad" class="pcpad" aria-label="Ô dò bút">Chạm vào đây</div>
+    <div class="row end"><button type="button" class="btn plain" id="pcReset">Xoá kết quả dò</button><button type="button" class="btn" id="pcRetry">Dò lại</button><button type="button" class="btn" id="pcClose">Đóng</button><button type="button" class="btn primary" id="pcSave" hidden>Lưu</button></div>
+  </div></dialog>
 
   <dialog id="daDlg"><div class="dlg">
     <h2>Xoá tất cả các trang?</h2>
@@ -1838,12 +1853,15 @@ cv.addEventListener('pointerdown',e=>{
   if(commitText())return;
   if(presDown(e))return;
   penSeen(e);
+  /* đầu gôm của bút: xoá, dù đang chọn công cụ nào để viết, vẽ */
+  const role=penRole(e);
+  if(role==='erase'&&tool!=='laser'){drag={type:'erase',changed:false,mode:'part',r:ER_SIZES.l/view.s,gum:true};eraseAt(toWorld(e));requestDraw();return}
   if(e.button===1||tool==='pan'||spaceDown||(penOnly&&e.pointerType==='touch'&&tool!=='select')){drag={type:'pan',sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y};cv.style.cursor='grabbing';return}
-  if(e.button!==0)return;
+  if(e.button!==0&&role!=='draw')return;
   const p=toWorld(e);
   const hd=instDown(p);if(hd){drag=hd;requestDraw();return}
   /* áp lòng bàn tay khi đang viết, vẽ: lau bảng */
-  const palm=palmOf(e);if(palm&&(tool==='pen'||tool==='hl'||SHAPES.includes(tool))){drag={type:'erase',changed:false,mode:'part',r:palm/view.s,palm:true};eraseAt(p);return}
+  const palm=palmOf(e);if(palm&&(tool==='pen'||tool==='hl'||SHAPES.includes(tool))){palmNotice(Math.max(e.width,e.height));drag={type:'erase',changed:false,mode:'part',r:palm/view.s,palm:true};eraseAt(p);return}
   if(tool==='pen'||tool==='hl'){cur={type:'stroke',pts:[[p.x,p.y,e.pressure||.5]],color,size,hl:tool==='hl',pr:e.pointerType==='pen',dash};if(tool==='pen'&&penType!=='ball')cur.pen=penType;drag={type:'draw'}}
   else if(tool==='eraser'){drag={type:'erase',changed:false,mode:eraseMode,r:eraseRadius()};eraseAt(p)}
   else if(SHAPES.includes(tool)){cur={type:tool,x1:p.x,y1:p.y,x2:p.x,y2:p.y,color,size,fill,dash};drag={type:'shape'}}
@@ -4883,11 +4901,14 @@ function closePops(){for(const p of document.querySelectorAll('.pop'))p.hidden=t
 function togglePop(id,anchor){
   const p=$('#'+id),was=!p.hidden;closePops();if(was)return;
   p.hidden=false;const a=anchor.getBoundingClientRect(),r=app.getBoundingClientRect();
+  /* cao hơn chỗ trống thì cuộn được, không bị cắt mất phần dưới */
+  p.style.maxHeight=Math.max(160,r.height-16)+'px';p.style.overflowY='auto';
   p.style.left=clamp(a.left-r.left,8,Math.max(8,r.width-p.offsetWidth-8))+'px';
   /* nút ở cạnh dưới (thanh trình chiếu): mở lên phía trên */
   /* thanh công cụ ở dưới: mở lên trên cả thanh, không che hàng nút phía trên */
   const up=anchor.closest('#bar')&&document.body.classList.contains('barBottom')?$('#bar').getBoundingClientRect().top:a.top;
   p.style.top=(a.bottom-r.top+6+p.offsetHeight>r.height?Math.max(8,up-r.top-p.offsetHeight-6):a.bottom-r.top+6)+'px';
+  const room=r.height-parseFloat(p.style.top)-8;if(p.offsetHeight>room)p.style.maxHeight=Math.max(160,room)+'px';
 }
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('.pop,[data-pop]'))closePops()},true);
 const popBtn=(parent,html,title,id,cls)=>{const b=mkBtn(parent,html,title,()=>togglePop(id,b),cls);b.dataset.pop=1;return b};
@@ -4961,7 +4982,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.8.0';
+const APPVER='2.8.1';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
@@ -5251,7 +5272,11 @@ const ER_SIZES={s:8,m:18,l:40};
 let eraseMode='part',eraseSize='m';try{eraseMode=localStorage.getItem('bvt-ermode')||'part';eraseSize=localStorage.getItem('bvt-ersize')||'m';if(!ER_SIZES[eraseSize])eraseSize='m'}catch(_){}
 /* nhận lòng bàn tay: 'size' = vùng chạm lớn (màn hình báo độ rộng vùng chạm), 'multi' = vùng chạm lớn hoặc từ 3 điểm chạm cùng lúc
    (bảng hồng ngoại thường không báo độ rộng, lòng bàn tay thành nhiều điểm), 'off' = tắt. Độ nhạy: ngưỡng độ rộng vùng chạm. */
-let palmMode='multi',palmMin=38;try{palmMode=localStorage.getItem('bvt-palm')||'multi';palmMin=+localStorage.getItem('bvt-palmmin')||38}catch(_){}
+/* bảng hồng ngoại hay báo bút (không pin) thành điểm chạm khá rộng: ngưỡng mặc định 60 px, và tự học độ rộng của các lần chạm để viết —
+   chỉ coi là lòng bàn tay khi vùng chạm rộng hơn hẳn (≥ 2,2 lần mức thường gặp). */
+let palmMode='multi',palmMin=60;try{palmMode=localStorage.getItem('bvt-palm')||'multi';palmMin=+localStorage.getItem('bvt-palmmin2')||60}catch(_){}
+const touchW=[];
+function palmThr(){if(touchW.length<3)return palmMin;const s=touchW.slice().sort((a,b)=>a-b);return Math.max(palmMin,s[s.length>>1]*2.2)}
 /* nét o mất phần nằm trong vòng tròn tâm p bán kính r; trả về các nét còn lại */
 function splitStroke(o,p,r){
   const q=o.pts,thr=r+(o.hl?o.size*2:o.size/2),step=Math.max(r/3,.6),d=[];
@@ -5269,7 +5294,12 @@ function splitStroke(o,p,r){
 }
 function eraseRadius(){return ER_SIZES[eraseSize]/view.s}
 /* lòng bàn tay: vùng chạm lớn (đơn vị điểm ảnh màn hình) */
-const palmOf=e=>e.pointerType==='touch'&&!penOnly&&palmMode!=='off'&&Math.max(e.width||0,e.height||0)>=palmMin?Math.max(e.width,e.height)*.6:0;
+const palmOf=e=>penRole(e)!=='draw'&&e.pointerType==='touch'&&!penOnly&&palmMode!=='off'&&Math.max(e.width||0,e.height||0)>=palmThr()?Math.max(e.width,e.height)*.6:0;
+/* ghi lại độ rộng các lần chạm để viết (không phải lòng bàn tay) */
+cv.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;const w=Math.max(e.width||0,e.height||0);if(w>1&&!palmOf(e)){touchW.push(w);if(touchW.length>30)touchW.shift()}},true);
+/* lần đầu lau bằng lòng bàn tay: nói rõ để giáo viên chỉnh nếu đang cầm bút mà bị nhận nhầm */
+let palmTold=false;
+function palmNotice(w){if(palmTold)return;palmTold=true;toast('Đang lau bằng lòng bàn tay (vùng chạm '+Math.round(w)+' px). Nếu đang viết bằng bút: bấm Tẩy hai lần → Lau bằng lòng bàn tay → Ít nhạy hoặc Tắt.')}
 /* lau bằng nhiều điểm chạm: từ 3 điểm trở lên (không bật chế độ nhiều học sinh viết) */
 const palmGroupOn=()=>palmMode==='multi'&&!penOnly&&!multiWrite&&(tool==='pen'||tool==='hl'||tool==='eraser'||SHAPES.includes(tool));
 function palmGroupState(){const P=[...pointers.values()],r=cv.getBoundingClientRect();let cx=0,cy=0;for(const q of P){cx+=q.x;cy+=q.y}cx/=P.length;cy/=P.length;
@@ -5278,14 +5308,14 @@ function palmGroupStart(){cur=null;pinch=null;const g=palmGroupState();drag={typ
 function palmGroupMove(){const g=palmGroupState();drag.r=Math.max(drag.r,g.r);eraseAt(g.p)}
 function syncPalm(){for(const b of $('#erPalm').children)b.setAttribute('aria-pressed',b.dataset.p===palmMode);for(const b of $('#erPalmS').children)b.setAttribute('aria-pressed',+b.dataset.v===palmMin)}
 for(const b of $('#erPalm').children)b.onclick=()=>{palmMode=b.dataset.p;try{localStorage.setItem('bvt-palm',palmMode)}catch(_){}syncPalm()};
-for(const b of $('#erPalmS').children)b.onclick=()=>{palmMin=+b.dataset.v;try{localStorage.setItem('bvt-palmmin',palmMin)}catch(_){}syncPalm()};
+for(const b of $('#erPalmS').children)b.onclick=()=>{palmMin=+b.dataset.v;try{localStorage.setItem('bvt-palmmin2',palmMin)}catch(_){}syncPalm()};
 syncPalm();
 /* kiểm tra màn hình cảm ứng: hiện số điểm chạm và độ rộng vùng chạm mà màn hình báo về, để chọn cách nhận lòng bàn tay phù hợp */
 let touchTest=0,touchMax={n:0,w:0};
 function touchTestShow(e){if(!touchTest)return;const n=pointers.size+(e.type==='pointerdown'&&e.pointerType==='touch'&&!pointers.has(e.pointerId)?1:0)||1;touchMax.n=Math.max(touchMax.n,n);touchMax.w=Math.max(touchMax.w,Math.round(Math.max(e.width||0,e.height||0)));
-  const el=$('#touchInfo');el.hidden=false;el.textContent='Loại: '+e.pointerType+' · điểm chạm cùng lúc: '+n+' (nhiều nhất '+touchMax.n+') · độ rộng vùng chạm: '+Math.round(e.width||0)+' × '+Math.round(e.height||0)+' px (lớn nhất '+touchMax.w+')';}
+  const el=$('#touchInfo');el.hidden=false;el.textContent='Loại: '+e.pointerType+(e.pointerType!=='touch'?' (nút '+e.button+'/'+e.buttons+(penSig(e).er?', cờ gôm':'')+')':'')+' · điểm chạm cùng lúc: '+n+' (nhiều nhất '+touchMax.n+') · độ rộng vùng chạm: '+Math.round(e.width||0)+' × '+Math.round(e.height||0)+' px (lớn nhất '+touchMax.w+')';}
 $('#erTest').onclick=()=>{closePops();touchMax={n:0,w:0};clearTimeout(touchTest);touchTest=setTimeout(()=>{touchTest=0;const el=$('#touchInfo');
-  el.textContent=touchMax.w>=palmMin?'✓ Màn hình báo được độ rộng vùng chạm ('+touchMax.w+' px): lau bằng lòng bàn tay dùng được.':touchMax.n>=3?'Màn hình không báo độ rộng vùng chạm nhưng nhận được '+touchMax.n+' điểm cùng lúc: chọn “Vùng chạm lớn hoặc từ 3 điểm”.':touchMax.w||touchMax.n?'Màn hình chỉ báo '+touchMax.n+' điểm chạm, độ rộng '+touchMax.w+' px: lòng bàn tay không nhận ra được; hãy dùng nút Tẩy cỡ To.':'Chưa nhận được lần chạm nào.';
+  el.textContent=touchMax.w>=palmThr()?'✓ Màn hình báo được độ rộng vùng chạm ('+touchMax.w+' px): lau bằng lòng bàn tay dùng được.':touchMax.n>=3?'Màn hình không báo độ rộng vùng chạm nhưng nhận được '+touchMax.n+' điểm cùng lúc: chọn “Vùng chạm lớn hoặc từ 3 điểm”.':touchMax.w||touchMax.n?'Màn hình chỉ báo '+touchMax.n+' điểm chạm, độ rộng '+touchMax.w+' px: lòng bàn tay không nhận ra được; hãy dùng nút Tẩy cỡ To.':'Chưa nhận được lần chạm nào.';
   setTimeout(()=>{el.hidden=true},9000)},12000);const el=$('#touchInfo');el.hidden=false;el.textContent='Trong 12 giây: áp cả lòng bàn tay lên bảng, rồi thử chạm bằng một ngón tay…';};
 cv.addEventListener('pointerdown',touchTestShow,true);cv.addEventListener('pointermove',e=>{if(touchTest&&e.buttons)touchTestShow(e)},true);
 /* nút tẩy: bấm lần đầu chọn tẩy, bấm lại mở bảng chọn kiểu tẩy, cỡ tẩy */
@@ -5342,6 +5372,38 @@ $('#chemForm').addEventListener('submit',e=>{
 });
 /* nút Chèn thêm: biểu đồ, công thức hoá học */
 $('#mxChart').onclick=()=>{closePops();openChart()};$('#mxChem').onclick=()=>{closePops();openChem()};
+/* ---------- đầu bút / đầu gôm của bút bảng tương tác ----------
+   Chuẩn (Windows Ink): đầu gôm báo cờ "eraser" (button 5, buttons & 32). Nhưng mỗi hãng bảng báo một kiểu: có bảng báo ngược, có bảng
+   báo bút thành điểm chạm, phân biệt hai đầu bằng độ rộng. "Dò bút của bảng": viết bằng đầu bút, chạm đầu gôm — ghi lại hai đầu khác
+   nhau ở đâu (loại tín hiệu, cờ gôm, độ rộng vùng chạm) rồi theo đó nhận đúng đầu viết, đầu xoá. */
+let penCal=null;try{penCal=JSON.parse(localStorage.getItem('bvt-pencal'))}catch(_){}
+const penSig=e=>({t:e.pointerType,er:e.button===5||!!(e.buttons&32),w:Math.round(Math.max(e.width||0,e.height||0))});
+function penRole(e){
+  if(!e||e.pointerType==='mouse')return null;const s=penSig(e);
+  if(!penCal)return s.t==='pen'&&s.er?'erase':null;
+  const{tip,gum}=penCal;
+  if(tip.t!==gum.t)return s.t===tip.t?'draw':s.t===gum.t?'erase':null;
+  if(s.t!==tip.t)return null;
+  if(tip.er!==gum.er)return s.er===tip.er?'draw':'erase';
+  if(Math.abs(tip.w-gum.w)>=6){const mid=(tip.w+gum.w)/2;return(s.w>=mid)===(gum.w>tip.w)?'erase':'draw'}
+  return s.er?'erase':null;
+}
+const pcDlg=$('#pcDlg'),pcPad=$('#pcPad');let pcStep=0,pcTmp={};
+const sigTxt=s=>(s.t==='pen'?'bút':s.t==='touch'?'điểm chạm':s.t)+(s.er?', cờ gôm':'')+(s.w>1?', rộng '+s.w+' px':'');
+function pcShow(){const t=$('#pcStepT');pcPad.classList.toggle('gum',pcStep===1);
+  if(pcStep===0)t.textContent='Bước 1/2: viết một nét bằng ĐẦU BÚT vào ô bên dưới.';
+  else if(pcStep===1)t.textContent='Bước 2/2: chạm hoặc chà ĐẦU GÔM vào ô bên dưới.';
+  else{const{tip,gum}=pcTmp,same=tip.t===gum.t&&tip.er===gum.er&&Math.abs(tip.w-gum.w)<6;
+    t.textContent=same?'Bảng báo hai đầu bút giống hệt nhau ('+sigTxt(tip)+'), không phân biệt được. Hãy dùng nút Tẩy trên thanh công cụ để xoá.'
+      :'Đầu bút: '+sigTxt(tip)+' · Đầu gôm: '+sigTxt(gum)+'. Bấm "Lưu" để ứng dụng nhận đúng hai đầu.';$('#pcSave').disabled=same}
+  $('#pcSave').hidden=pcStep<2}
+function openPenCal(){closePops();pcStep=0;pcTmp={};$('#pcCur').textContent=penCal?'Đã dò: đầu bút '+sigTxt(penCal.tip)+'; đầu gôm '+sigTxt(penCal.gum)+'.':'Chưa dò: dùng cách nhận chuẩn (đầu gôm báo cờ gôm).';pcShow();pcDlg.showModal()}
+pcPad.addEventListener('pointerdown',e=>{e.preventDefault();if(pcStep>1||e.pointerType==='mouse'&&!pcDlg.dataset.test)return;const s=penSig(e);
+  if(pcStep===0){pcTmp.tip=s;pcStep=1}else{pcTmp.gum=s;pcStep=2}pcShow()});
+$('#pcSave').onclick=()=>{penCal={tip:pcTmp.tip,gum:pcTmp.gum};try{localStorage.setItem('bvt-pencal',JSON.stringify(penCal))}catch(_){}pcDlg.close();toast('Đã lưu: đầu bút viết, đầu gôm xoá theo cách bảng này báo.')};
+$('#pcReset').onclick=()=>{penCal=null;try{localStorage.removeItem('bvt-pencal')}catch(_){}pcDlg.close();toast('Đã xoá kết quả dò bút; dùng cách nhận chuẩn.')};
+$('#pcRetry').onclick=()=>{pcStep=0;pcTmp={};pcShow()};$('#pcClose').onclick=()=>pcDlg.close();
+$('#erPenCal').onclick=openPenCal;
 /* ---------- công cụ dùng chung cho mọi môn ----------
    nhiều người viết cùng lúc, sắp xếp trang, xoay / cắt ảnh, bảng, con dấu chấm bài, ghi chú dán, mũi tên chú thích,
    kiểu chữ (đậm, nghiêng, nền), gọi tên ngẫu nhiên, hình dụng cụ thí nghiệm. */
@@ -5351,7 +5413,7 @@ $('#multiChk').checked=multiWrite;
 $('#multiChk').addEventListener('change',e=>{multiWrite=e.target.checked;try{localStorage.setItem('bvt-multi',multiWrite?'1':'0')}catch(_){}
   if(multiWrite)toast('Đã bật: nhiều học sinh viết cùng lúc. Thu phóng bằng nút − + trong Cài đặt trang giấy.')});
 function multiDown(e){
-  if(!multiWrite||e.pointerType==='mouse'||(tool!=='pen'&&tool!=='hl')||palmOf(e)||curtain.on)return false;
+  if(!multiWrite||e.pointerType==='mouse'||(tool!=='pen'&&tool!=='hl')||palmOf(e)||penRole(e)==='erase'||curtain.on)return false;
   commitText();const p=toWorld(e),s={type:'stroke',pts:[[p.x,p.y,e.pressure||.5]],color,size,hl:tool==='hl',pr:e.pointerType==='pen',dash};
   if(tool==='pen'&&penType!=='ball')s.pen=penType;multi.set(e.pointerId,s);requestDraw();return true;
 }
@@ -6380,6 +6442,20 @@ for(const b of $('#tbSeg').children)b.onclick=()=>setTbSize(b.dataset.v);
 setTbSize(tbSize);syncCompact();
 /* đổi cỡ cửa sổ khi đang mở bảng bật ra: đóng lại (vị trí cũ không còn đúng, dễ tràn ra ngoài màn hình) */
 addEventListener('resize',closePops);
+/* trình đơn ☰ chia 4 nhóm mở / thu (bấm tên nhóm để xem lệnh con): Tệp, Trang, Công cụ, Trợ giúp — vừa một màn hình, nhớ nhóm mở lần trước */
+{const menu=$('#popMenu'),byText=t=>[...menu.querySelectorAll('.item')].find(b=>b.textContent.startsWith(t));
+  const G=[['📁','Tệp',['#mOpenDoc','#mSaveDoc','#mImg','#mPdfOpen','#mExport','#mPdf1','#mPdfAll']],
+    ['📄','Trang',[()=>byText('Thêm trang mới'),'#mPages','#mClear','#mDelPage','#mDelAll']],
+    ['🛠','Công cụ',[()=>byText('Dán'),()=>byText('Ghi hình'),'#mShot','#mOverlay','#mTheme']],
+    ['❔','Trợ giúp',['#mTour','#mKeys','#mAbout']]];
+  let open='Tệp';try{open=localStorage.getItem('bvt-menu')||'Tệp'}catch(_){}
+  const hint=menu.querySelector('.hint'),heads=[];
+  for(const[ic,name,list]of G){const h=document.createElement('button');h.type='button';h.className='item mgrp';h.innerHTML='<span class="mic"></span><span class="mlb"></span><span class="mar">▸</span>';
+    h.querySelector('.mic').textContent=ic;h.querySelector('.mlb').textContent=name;const box=document.createElement('div');box.className='msub';
+    for(const q of list){const el=typeof q==='function'?q():menu.querySelector(q);if(el)box.append(el)}
+    h.onclick=()=>{const was=h.getAttribute('aria-expanded')==='true';for(const[hh,bb]of heads){hh.setAttribute('aria-expanded','false');bb.hidden=true}
+      if(!was){h.setAttribute('aria-expanded','true');box.hidden=false;try{localStorage.setItem('bvt-menu',name)}catch(_){}}};
+    h.setAttribute('aria-expanded',name===open);box.hidden=name!==open;menu.insertBefore(h,hint);menu.insertBefore(box,hint);heads.push([h,box])}}
 /* ---------- bàn phím ---------- */
 const KEYS={q:'laser',v:'select',h:'pan',p:'pen',m:'hl',e:'eraser',l:'line',a:'arrow',r:'rect',o:'ellipse',i:'tri',t:'text'};
 addEventListener('keydown',e=>{
