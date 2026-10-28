@@ -424,6 +424,17 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
   #title{max-width:22vw}#tc{font-size:13px;gap:2px}#tc button,#title{font-size:13px;padding:4px 3px}
   .ranges{grid-template-columns:repeat(2,1fr)}
 }
+/* che màn theo trang: bốn hướng hé */
+.curgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}
+.curgrid .btn[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:1px}
+/* căn chỉnh, sắp xếp */
+#popAlign{width:min(330px,calc(100vw - 24px))}
+#popAlign h4{margin:10px 0 4px;font:700 12px var(--ui);color:var(--muted)}
+.algrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.pop .tb.albtn{width:auto;height:auto;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;font:600 11.5px var(--ui);line-height:1.2;text-align:center}
+.pop .tb.albtn svg{width:24px;height:24px;flex:none}
+.pop .tb.albtn:disabled{opacity:.35;pointer-events:none}
+#popAlign .row{display:flex;gap:12px;margin-top:8px;font-size:13px}
 </style>
 </head>
 <body>
@@ -572,6 +583,25 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
     <button type="button" class="item" id="mKeys">Phím tắt (?)</button>
     <button type="button" class="item" id="mAbout">Giới thiệu phần mềm</button>
     <p class="hint">© 2026 Hoàng Ngọc Cảnh</p>
+  </div>
+  <div class="pop" id="popCurtain" hidden>
+    <h3>Che màn trang này</h3>
+    <p class="hint">Chọn hướng hé dần nội dung, rồi kéo mép tấm che. Mỗi trang nhớ tấm che riêng.</p>
+    <div class="curgrid">
+      <button type="button" class="btn" data-side="bottom">↓ Hé từ trên xuống</button><button type="button" class="btn" data-side="top">↑ Hé từ dưới lên</button>
+      <button type="button" class="btn" data-side="right">→ Hé từ trái sang phải</button><button type="button" class="btn" data-side="left">← Hé từ phải sang trái</button>
+    </div>
+    <button type="button" class="btn plain" id="curOff">Bỏ tấm che của trang này</button>
+  </div>
+  <div class="pop" id="popAlign" hidden>
+    <h3>Căn chỉnh, sắp xếp</h3>
+    <p class="hint" id="alHint"></p>
+    <div class="algrid" id="alAlign"></div>
+    <h4>Dàn đều khoảng cách</h4>
+    <div class="algrid" id="alDist"></div>
+    <h4>Xếp lại</h4>
+    <div class="algrid" id="alArr"></div>
+    <div class="row"><label>Số cột <input type="number" id="alCols" min="1" max="20" value="3" style="width:4em"></label><label>Khoảng cách <input type="number" id="alGap" min="0" max="400" value="30" style="width:4.5em"></label></div>
   </div>
   <div class="pop" id="popTimer" hidden>
     <h3>Đồng hồ đếm ngược</h3>
@@ -1776,9 +1806,13 @@ function readTheme(){
 }
 /* khổ dọc: vừa chiều ngang; khổ ngang: thấy trọn trang, đặt giữa */
 function fit(){fitMode=true;if(orient==='wide'&&H){view.s=Math.min(W/PW,H/PH);view.x=-(W/view.s-PW)/2;view.y=Math.min(0,-(H/view.s-PH)/2)}else{view.s=W/PW;view.x=0;if(view.y<0)view.y=0}requestDraw()}
+/* đổi cỡ màn hình (cửa sổ, máy chiếu, toàn màn hình): nội dung co dãn theo, không bị cắt hay thu nhỏ lại.
+   Đang "Vừa khổ" thì vừa khổ lại; đang phóng to tay thì giữ nguyên tỉ lệ so với bề ngang màn hình và giữ điểm ở giữa màn hình. */
 function resize(){
-  const r=cv.getBoundingClientRect();dpr=window.devicePixelRatio||1;W=r.width;H=r.height;
-  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);if(fitMode&&W)fit();draw();
+  const r=cv.getBoundingClientRect(),W0=W,H0=H;dpr=window.devicePixelRatio||1;W=r.width;H=r.height;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  if(fitMode&&W)fit();else if(W0&&W&&(W0!==W||H0!==H)){const cx=view.x+W0/2/view.s,cy=view.y+H0/2/view.s;view.s=clamp(view.s*W/W0,.1,8);view.x=cx-W/2/view.s;view.y=cy-H/2/view.s}
+  draw();
 }
 
 /* ---------- lịch sử + lưu ----------
@@ -1963,7 +1997,7 @@ function endPointer(e){
   if(drag.group&&pointers.size){return}
   const d=drag;drag=null;
   if(d.type==='laser'){laser.cur=null;requestDraw();return}
-  if(d.type==='curtain')return;
+  if(d.type==='curtain'){commit();return}
   if(d.type==='inst')instUp(d);
   else if(d.type==='pan')setCursor();
   else if(d.type==='draw'){objs.push(cur);cur=null;commit()}
@@ -5006,7 +5040,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.12.0';
+const APPVER='2.13.0';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
@@ -5074,22 +5108,30 @@ function syncUI(){
 
 /* ---------- trình chiếu: toàn màn hình, bút laser, đèn rọi, che màn, đồng hồ đếm ngược ----------
    Bút laser vẽ vệt sáng tự mờ (không lưu vào bài). Đèn rọi làm tối cả màn hình trừ vòng sáng quanh con trỏ (Shift + lăn chuột: đổi cỡ).
-   Che màn: tấm che từ một mép kéo được xuống dưới, để hé dần lời giải. Các lớp này vẽ đè lên bảng ở cuối mỗi lần vẽ (drawOverlays). */
+   Che màn: mỗi trang có tấm che riêng (lưu trong bài như một đối tượng ẩn {type:'curtain', side, pos}), che từ một trong bốn phía;
+   kéo mép để hé dần lời giải theo hướng giáo viên chọn. Mép tấm che gắn với nội dung trang (toạ độ trang), cuộn, thu phóng vẫn đúng chỗ.
+   Các lớp này vẽ đè lên bảng ở cuối mỗi lần vẽ (drawOverlays). */
 let PRES=false,ptr=null;
-const laser={trails:[],cur:null},spot={on:false,r:150},curtain={on:false,y:.3};
+const laser={trails:[],cur:null},spot={on:false,r:150};
+/* tấm che của trang đang mở; side: phía bị che (bottom: hé từ trên xuống, top: hé từ dưới lên, right: hé từ trái sang, left: hé từ phải sang) */
+const curObj=()=>objs.find(o=>o.type==='curtain'),curtain={get on(){return!!curObj()}};
+const curV=o=>o.side==='left'||o.side==='right';
+/* mép tấm che trên màn hình (px) và phần bị che */
+const curEdge=o=>curV(o)?(o.pos-view.x)*view.s:(o.pos-view.y)*view.s;
+const curCovers=(o,sx,sy)=>{const e=curEdge(o);return o.side==='bottom'?sy>e:o.side==='top'?sy<e:o.side==='right'?sx>e:sx<e};
 const LASER_HOLD=700,LASER_FADE=900;
 function laserDown(e){const p=toWorld(e);laser.cur={pts:[[p.x,p.y,performance.now()]]};laser.trails.push(laser.cur);drag={type:'laser'};requestDraw()}
 function laserMove(e){if(!laser.cur)return;const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];for(const ev of(evs.length?evs:[e])){const p=toWorld(ev);laser.cur.pts.push([p.x,p.y,performance.now()])}}
 /* bấm xuống: tấm che (kéo mép, hoặc chặn vẽ lên phần đang che), bút laser */
 function presDown(e){
   const r=cv.getBoundingClientRect(),sy=e.clientY-r.top;
-  if(curtain.on){const cy=curtain.y*H;if(Math.abs(sy-cy)<22){drag={type:'curtain'};return true}if(sy>cy)return true}
+  const co=curObj();if(co){const sx=e.clientX-r.left,e0=curEdge(co);if(Math.abs((curV(co)?sx:sy)-e0)<22){drag={type:'curtain',o:co};return true}if(curCovers(co,sx,sy))return true}
   if(tool==='laser'&&e.button===0){laserDown(e);return true}
   return false;
 }
 function presMove(e){
   if(drag.type==='laser')laserMove(e);
-  else if(drag.type==='curtain'){const r=cv.getBoundingClientRect();curtain.y=clamp((e.clientY-r.top)/H,0,1)}
+  else if(drag.type==='curtain'){const p=toWorld(e),o=drag.o;o.pos=curV(o)?p.x:p.y}
   requestDraw();
 }
 function trackPtr(e){const r=cv.getBoundingClientRect();ptr={x:e.clientX-r.left,y:e.clientY-r.top};if(spot.on||tool==='laser'||curtain.on)requestDraw()}
@@ -5108,9 +5150,12 @@ function drawOverlays(c){
   c.save();c.setTransform(dpr,0,0,dpr,0,0);
   if(tool==='laser'&&ptr){const g=c.createRadialGradient(ptr.x,ptr.y,0,ptr.x,ptr.y,16);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.25,'rgba(255,40,40,1)');g.addColorStop(1,'rgba(255,40,40,0)');
     c.fillStyle=g;c.beginPath();c.arc(ptr.x,ptr.y,16,0,7);c.fill()}
-  if(curtain.on){const y=Math.round(curtain.y*H);c.fillStyle='#3b4049';c.fillRect(0,y,W,H-y);
-    c.fillStyle='#565c67';c.fillRect(0,y,W,3);const t='⇕  Kéo để hé hoặc che',tw=200;c.fillStyle='#565c67';c.beginPath();c.roundRect(W/2-tw/2,y-14,tw,28,14);c.fill();
-    c.fillStyle='#fff';c.font='600 13px '+FONT;c.textAlign='center';c.textBaseline='middle';c.fillText(t,W/2,y)}
+  const co=curObj();if(co){const v=curV(co),e=Math.round(clamp(curEdge(co),0,v?W:H));c.fillStyle='#3b4049';
+    if(co.side==='bottom')c.fillRect(0,e,W,H-e);else if(co.side==='top')c.fillRect(0,0,W,e);else if(co.side==='right')c.fillRect(e,0,W-e,H);else c.fillRect(0,0,e,H);
+    c.fillStyle='#565c67';if(v)c.fillRect(e-1.5,0,3,H);else c.fillRect(0,e-1.5,W,3);
+    const t=(v?'⇔':'⇕')+'  Kéo để hé hoặc che',tw=200;c.font='600 13px '+FONT;c.textAlign='center';c.textBaseline='middle';
+    if(v){c.save();c.translate(e,H/2);c.rotate(-Math.PI/2);c.beginPath();c.roundRect(-tw/2,-14,tw,28,14);c.fill();c.fillStyle='#fff';c.fillText(t,0,0);c.restore()}
+    else{c.beginPath();c.roundRect(W/2-tw/2,e-14,tw,28,14);c.fill();c.fillStyle='#fff';c.fillText(t,W/2,e)}}
   if(spot.on){c.fillStyle='rgba(8,10,14,.82)';c.beginPath();c.rect(0,0,W,H);const p=ptr||{x:W/2,y:H/2};c.arc(p.x,p.y,spot.r,0,7);c.fill('evenodd');
     c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=2;c.beginPath();c.arc(p.x,p.y,spot.r,0,7);c.stroke()}
   c.restore();
@@ -5118,7 +5163,15 @@ function drawOverlays(c){
 }
 cv.addEventListener('wheel',e=>{if(spot.on&&e.shiftKey){e.stopImmediatePropagation();e.preventDefault();spot.r=clamp(spot.r*Math.exp(-clamp(e.deltaY,-100,100)*.004),50,600);requestDraw()}},{capture:true,passive:false});
 function toggleSpot(){spot.on=!spot.on;if(spot.on)toast('Đèn rọi: di chuột để soi; Shift + lăn chuột để đổi cỡ vòng sáng.');syncPres();requestDraw()}
-function toggleCurtain(){curtain.on=!curtain.on;if(curtain.on){curtain.y=.3;toast('Che màn: kéo mép tấm che để hé dần nội dung.')}syncPres();requestDraw()}
+/* đặt tấm che cho trang đang mở theo hướng hé; tấm che mới che phần lớn vùng đang thấy */
+function setCurtain(side){closePops();objs=objs.filter(o=>o.type!=='curtain');
+  if(side){const w=W/view.s,h=H/view.s,pos={bottom:view.y+.3*h,top:view.y+.7*h,right:view.x+.3*w,left:view.x+.7*w}[side];
+    objs.push({type:'curtain',lock:true,side,pos,x:0,y:0,w:0,h:0});toast('Đã che trang '+(pi+1)+'. Kéo mép tấm che để hé dần; mỗi trang nhớ tấm che riêng.')}
+  commit();syncPres()}
+function toggleCurtain(anchor){const p=$('#popCurtain');for(const b of p.querySelectorAll('[data-side]'))b.setAttribute('aria-pressed',!!curObj()&&curObj().side===b.dataset.side);
+  $('#curOff').hidden=!curObj();togglePop('popCurtain',anchor||presBtns.curtain)}
+for(const b of $('#popCurtain').querySelectorAll('[data-side]'))b.onclick=()=>setCurtain(b.dataset.side);
+$('#curOff').onclick=()=>setCurtain(null);
 
 /* đồng hồ đếm ngược */
 const tmr={end:0,left:0,run:false,iv:0};
@@ -5149,7 +5202,7 @@ pbtn(pa('M15 5l-7 7 7 7'),'Trước',()=>gotoPage(pi-1));
 const presPage=document.createElement('span');presPage.className='ppage';PB.append(presPage);
 pbtn(pa('M9 5l7 7-7 7'),'Sau',()=>{if(pi===pages.length-1)newPage();else gotoPage(pi+1)});
 presBtns.spot=pbtn(svg('<circle cx="12" cy="12" r="5"/><path d="M3 3l4 4M21 3l-4 4M3 21l4-4M21 21l-4-4"/>'),'Đèn rọi',toggleSpot);
-presBtns.curtain=pbtn(pa('M3 4h18M5 4v9h14V4M12 13v4M9 20h6'),'Che màn',toggleCurtain);
+presBtns.curtain=pbtn(pa('M3 4h18M5 4v9h14V4M12 13v4M9 20h6'),'Che màn',()=>toggleCurtain(presBtns.curtain));presBtns.curtain.dataset.pop=1;
 const tmB=pbtn(svg('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>'),'Đồng hồ',()=>togglePop('popTimer',tmB));tmB.dataset.pop=1;
 pbtn(pa('M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5M8 8l8 8M16 8l-8 8'),'Thoát',()=>setPresent(false),'pexit');
 function syncPres(){
@@ -5161,7 +5214,7 @@ function setPresent(on){
   if(on===PRES)return;PRES=on;document.body.classList.toggle('present',on);closePops();
   if(on){try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{})}catch(_){}
     toast('Trình chiếu: Q bút laser · ←/→ đổi trang · Esc để thoát.')}
-  else{spot.on=false;curtain.on=false;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});if(tool==='laser')setTool('pen')}
+  else{spot.on=false;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});if(tool==='laser')setTool('pen')}
   syncPres();setTimeout(()=>{resize();fit()},120);
 }
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&PRES)setPresent(false)});
@@ -7147,9 +7200,11 @@ addEventListener('resize',closePops);
 /* trình đơn ☰ chia 4 nhóm mở / thu (bấm tên nhóm để xem lệnh con): Tệp, Trang, Công cụ, Trợ giúp — vừa một màn hình, nhớ nhóm mở lần trước */
 {const menu=$('#popMenu'),byText=t=>[...menu.querySelectorAll('.item')].find(b=>b.textContent.startsWith(t));
   const G=[['📁','Tệp',['#mOpenDoc','#mSaveDoc','#mImg','#mPdfOpen','#mExport','#mPdf1','#mPdfAll']],
-    ['📄','Trang',[()=>byText('Thêm trang mới'),'#mPages',()=>mkPin('Khoá mọi đối tượng trên trang',true),()=>mkPin('Mở khoá mọi đối tượng trên trang',false),'#mClear','#mDelPage','#mDelAll']],
+    ['📄','Trang',[()=>byText('Thêm trang mới'),'#mPages',()=>mkCur(),()=>mkPin('Khoá mọi đối tượng trên trang',true),()=>mkPin('Mở khoá mọi đối tượng trên trang',false),'#mClear','#mDelPage','#mDelAll']],
     ['🛠','Công cụ',[()=>byText('Dán'),()=>byText('Ghi hình'),'#mShot','#mOverlay','#mTheme']],
     ['❔','Trợ giúp',['#mTour','#mKeys','#mAbout']]];
+  const mkCur=()=>{const b=document.createElement('button');b.type='button';b.className='item';b.textContent='🎭 Che màn trang này (hé dần nội dung)';b.dataset.pop=1;
+    b.onclick=()=>{const a=document.querySelector('.tb[data-pop][aria-label="Trình đơn"]')||b;closePops();toggleCurtain(a)};return b};
   const mkPin=(t,on)=>{const b=document.createElement('button');b.type='button';b.className='item';b.textContent=(on?'🔒 ':'🔓 ')+t;b.onclick=()=>{closePops();pinPage(on)};return b};
   let open='Tệp';try{open=localStorage.getItem('bvt-menu')||'Tệp'}catch(_){}
   const hint=menu.querySelector('.hint'),heads=[];
@@ -7159,6 +7214,51 @@ addEventListener('resize',closePops);
     h.onclick=()=>{const was=h.getAttribute('aria-expanded')==='true';for(const[hh,bb]of heads){hh.setAttribute('aria-expanded','false');bb.hidden=true}
       if(!was){h.setAttribute('aria-expanded','true');box.hidden=false;try{localStorage.setItem('bvt-menu',name)}catch(_){}}};
     h.setAttribute('aria-expanded',name===open);box.hidden=name!==open;menu.insertBefore(h,hint);menu.insertBefore(box,hint);heads.push([h,box])}}
+/* ---------- căn chỉnh, sắp xếp các đối tượng đang chọn ----------
+   Nhiều đối tượng: căn theo khung bao chung của nhóm đang chọn (như PowerPoint). Một đối tượng: căn theo trang (chiều ngang)
+   và vùng trang đang thấy trên màn hình (chiều dọc). Đối tượng đang khoá (🔒) không bị dời, nhưng vẫn làm mốc để căn. */
+const alMov=()=>[...sel].filter(o=>!o.lock&&!o.pin);
+/* khung làm mốc */
+function alRef(){if(sel.size>1)return unionBox(sel);const y0=Math.max(0,view.y),y1=Math.min(PH,view.y+H/view.s);return{x:0,y:y0,w:PW,h:Math.max(1,y1-y0)}}
+function alDone(L,msg){if(!L.length){toast('Các đối tượng đang khoá nên không dời được. Bấm 🔓 để mở khoá trước.');return}commit();if(msg)toast(msg)}
+/* căn: trái, giữa ngang, phải, trên, giữa dọc, dưới */
+function alAlign(k){const L=alMov(),R=alRef();
+  for(const o of L){const b=bbox(o);
+    const dx=k==='left'?R.x-b.x:k==='right'?R.x+R.w-b.x-b.w:k==='hc'?R.x+R.w/2-b.x-b.w/2:0,dy=k==='top'?R.y-b.y:k==='bottom'?R.y+R.h-b.y-b.h:k==='vc'?R.y+R.h/2-b.y-b.h/2:0;
+    if(dx||dy)moveObj(o,dx,dy)}
+  alDone(L)}
+/* dàn đều: giữ hai đối tượng ở hai đầu, khoảng trống giữa các đối tượng bằng nhau */
+function alDist(ax){const L=alMov();if(sel.size<3){toast('Chọn từ 3 đối tượng trở lên để dàn đều.');return}
+  const X=ax==='h',all=[...sel].map(o=>({o,b:bbox(o)})).sort((p,q)=>X?p.b.x+p.b.w/2-q.b.x-q.b.w/2:p.b.y+p.b.h/2-q.b.y-q.b.h/2);
+  const st=X?all[0].b.x:all[0].b.y,last=all[all.length-1].b,en=X?last.x+last.w:last.y+last.h,sum=all.reduce((s,p)=>s+(X?p.b.w:p.b.h),0),gap=(en-st-sum)/(all.length-1);
+  let cur=st;for(const p of all){const at=X?p.b.x:p.b.y;if(L.includes(p.o)&&Math.abs(cur-at)>.01)moveObj(p.o,X?cur-at:0,X?0:cur-at);cur+=(X?p.b.w:p.b.h)+gap}
+  alDone(L)}
+/* xếp thành hàng, cột, lưới (từ góc trên trái của nhóm, theo thứ tự đọc: trên xuống, trái sang) */
+function alArrange(mode){const L=alMov();if(L.length<2){toast('Chọn từ 2 đối tượng (chưa khoá) trở lên để xếp.');return}
+  const gap=Math.max(0,+$('#alGap').value||0),U=unionBox(new Set(L)),it=L.map(o=>({o,b:bbox(o)}));
+  if(mode==='row')it.sort((p,q)=>p.b.x-q.b.x||p.b.y-q.b.y);else if(mode==='col')it.sort((p,q)=>p.b.y-q.b.y||p.b.x-q.b.x);
+  else{/* thứ tự đọc: gom theo dòng (tâm gần nhau theo chiều dọc), mỗi dòng trái sang phải */
+    it.sort((p,q)=>p.b.y-q.b.y);const rows=[];for(const p of it){const r=rows[rows.length-1];if(r&&p.b.y<r.y+r.h*.6){r.list.push(p);r.h=Math.max(r.h,p.b.y+p.b.h-r.y)}else rows.push({y:p.b.y,h:p.b.h,list:[p]})}
+    it.length=0;for(const r of rows)it.push(...r.list.sort((p,q)=>p.b.x-q.b.x))}
+  const n=mode==='row'?it.length:mode==='col'?1:clamp(Math.round(+$('#alCols').value||3),1,it.length),cw=[],rh=[];
+  it.forEach((p,i)=>{const c=i%n,r=Math.floor(i/n);cw[c]=Math.max(cw[c]||0,p.b.w);rh[r]=Math.max(rh[r]||0,p.b.h)});
+  it.forEach((p,i)=>{const c=i%n,r=Math.floor(i/n);let x=U.x,y=U.y;for(let j=0;j<c;j++)x+=cw[j]+gap;for(let j=0;j<r;j++)y+=rh[j]+gap;moveObj(p.o,x-p.b.x,y-p.b.y)});
+  alDone(L,mode==='grid'?'Đã xếp thành lưới '+n+' cột.':null)}
+/* đưa cả nhóm vào giữa trang (ngang) và giữa vùng đang thấy (dọc) */
+function alCenter(){const L=alMov();if(!L.length){alDone(L);return}const U=unionBox(new Set(L)),y0=Math.max(0,view.y),y1=Math.min(PH,view.y+H/view.s);
+  const dx=PW/2-U.x-U.w/2,dy=(y0+y1)/2-U.y-U.h/2;for(const o of L)moveObj(o,dx,dy);alDone(L)}
+{const ab=(id,d,label,fn)=>{const b=mkBtn($('#'+id),pa(d)+'<span>'+label+'</span>',label,fn,'albtn');return b};
+  const AL=[['left','M4 3v18M8 7h10v4H8zM8 14h6v4H8z','Căn trái'],['hc','M12 3v18M6 7h12v4H6zM8 14h8v4H8z','Căn giữa ngang'],['right','M20 3v18M6 7h10v4H6zM10 14h6v4h-6z','Căn phải'],
+    ['top','M3 4h18M7 8h4v10H7zM14 8h4v6h-4z','Căn trên'],['vc','M3 12h18M7 6h4v12H7zM14 8h4v8h-4z','Căn giữa dọc'],['bottom','M3 20h18M7 6h4v10H7zM14 10h4v6h-4z','Căn dưới']];
+  for(const[k,d,l]of AL)ab('alAlign',d,l,()=>alAlign(k));
+  ab('alDist','M3 4v16M21 4v16M7 8h3v8H7zM14 8h3v8h-3z','Dàn đều ngang',()=>alDist('h'));ab('alDist','M4 3h16M4 21h16M8 7h8v3H8zM8 14h8v3H8z','Dàn đều dọc',()=>alDist('v'));
+  ab('alArr','M3 9h5v6H3zM10 9h4v6h-4zM16 9h5v6h-5z','Xếp thành hàng',()=>alArrange('row'));ab('alArr','M9 3h6v5H9zM9 10h6v4H9zM9 16h6v5H9z','Xếp thành cột',()=>alArrange('col'));
+  ab('alArr','M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z','Xếp lưới',()=>alArrange('grid'));ab('alArr','M3 3h18v18H3zM8 9h8v6H8z','Vào giữa trang',alCenter)}
+function openAlign(){const n=sel.size,m=alMov().length;
+  $('#alHint').textContent=n>1?'Căn theo khung chung của '+n+' đối tượng đang chọn'+(m<n?' ('+(n-m)+' đối tượng khoá đứng yên làm mốc)':'')+'.':'Một đối tượng: căn theo trang (ngang) và phần trang đang thấy (dọc).';
+  for(const b of $('#alDist').children)b.disabled=n<3;for(const b of $('#alArr').children)b.disabled=b.textContent!=='Vào giữa trang'&&m<2;
+  $('#alCols').value=clamp(Math.ceil(Math.sqrt(Math.max(1,m))),1,20);togglePop('popAlign',sbBtn.align)}
+sbBtn.align=mkBtn(SB,pa('M4 3v18M8 7h12v4H8zM8 14h7v4H8z'),'Căn chỉnh, sắp xếp',openAlign);sbBtn.align.dataset.pop=1;
 /* ---------- bàn phím ---------- */
 const KEYS={q:'laser',v:'select',h:'pan',p:'pen',m:'hl',e:'eraser',l:'line',a:'arrow',r:'rect',o:'ellipse',i:'tri',t:'text'};
 addEventListener('keydown',e=>{
