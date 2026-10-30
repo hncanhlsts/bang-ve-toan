@@ -1404,7 +1404,16 @@ function drawObj(c,o,scale){
     const p=o.pts;
     if(o.hl){c.globalAlpha=.4;c.lineWidth=o.size*4}
     if(p.length===1){c.beginPath();c.arc(p[0][0],p[0][1],c.lineWidth/2,0,7);c.fill()}
-    else if(o.pr&&!o.hl&&!o.dash){for(let i=1;i<p.length;i++){c.lineWidth=o.size*(.35+1.3*(p[i-1][2]+p[i][2])/2);c.beginPath();c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1]);c.stroke()}}
+    else if(o.pr&&!o.hl&&!o.dash){
+      let curW=-1;c.beginPath();
+      for(let i=1;i<p.length;i++){
+        const w=Math.round(o.size*(.35+1.3*(p[i-1][2]+p[i][2])/2)*4)/4;
+        if(curW<0){curW=w;c.lineWidth=curW;c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1])}
+        else if(Math.abs(w-curW)<.25){c.lineTo(p[i][0],p[i][1])}
+        else{c.stroke();c.beginPath();curW=w;c.lineWidth=curW;c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1])}
+      }
+      c.stroke();
+    }
     else{c.beginPath();c.moveTo(p[0][0],p[0][1]);
       for(let i=1;i<p.length-1;i++)c.quadraticCurveTo(p[i][0],p[i][1],(p[i][0]+p[i+1][0])/2,(p[i][1]+p[i+1][1])/2);
       const l=p[p.length-1];c.lineTo(l[0],l[1]);c.stroke()}
@@ -1772,7 +1781,8 @@ function draw(){
   const inking=drag&&drag.type==='draw'&&cur,bk=[view.x,view.y,view.s,cv.width,cv.height,objs.length,theme.paper].join();
   if(inking&&baseC&&baseC.k===bk){ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(baseC,0,0);ctx.setTransform(k,0,0,k,-view.x*k,-view.y*k)}
   else{drawPaper(ctx,view.s);for(const o of objs)if(o!==editing)drawObj(ctx,o,view.s);
-    if(inking){baseC=baseC||document.createElement('canvas');baseC.width=cv.width;baseC.height=cv.height;baseC.getContext('2d').drawImage(cv,0,0);baseC.k=bk}else baseC=null}
+    if(inking){baseC=baseC||document.createElement('canvas');if(baseC.width!==cv.width||baseC.height!==cv.height){baseC.width=cv.width;baseC.height=cv.height}
+      baseC.getContext('2d').drawImage(cv,0,0);baseC.k=bk}else baseC=null}
   if(cur)drawObj(ctx,cur,view.s);
   for(const s of multi.values())drawObj(ctx,s,view.s);
   drawInst(ctx);
@@ -1825,7 +1835,7 @@ let hist=[{p:['[]'],pi:0}],hi=0,saveT=0,saveWarned=false;
 function commit(all){
   pages[pi]=objs;const prev=hist[hi];let s;
   if(all!==true&&prev&&prev.p.length===pages.length){s=prev.p.slice();s[pi]=JSON.stringify(objs)}else s=pages.map(q=>JSON.stringify(q));
-  if(!prev||s.length!==prev.p.length||s.some((x,i)=>x!==prev.p[i])){hist.length=hi+1;hist.push({p:s,pi});if(hist.length>120)hist.shift();hi=hist.length-1}
+  if(!prev||s.length!==prev.p.length||s.some((x,i)=>x!==prev.p[i])){hist.length=hi+1;hist.push({p:s,pi});if(hist.length>50)hist.shift();hi=hist.length-1}
   syncUI();save();requestDraw();
 }
 const IDB={db:null,
@@ -1845,20 +1855,20 @@ function save(){clearTimeout(saveT);saveT=setTimeout(async()=>{
   try{localStorage.setItem(KEY,full);saveWarned=false}catch(_){
     let ok=false;try{const{assets:_a,...base}=d;localStorage.setItem(KEY,JSON.stringify(base));ok=true}catch(_){}
     if(!saveWarned){saveWarned=true;toast((ok?'Bộ nhớ đã đầy: ảnh và trang PDF chưa được tự lưu.':'Không tự lưu được bài vẽ (bộ nhớ đầy).')+' Hãy lưu bài vẽ thành file (Ctrl+S) để giữ bài.')}}
-},400)}
+},600)}
 /* hoàn tác / làm lại xong thì đứng ở trang vừa thay đổi */
-function undo(d){const n=hi+d;if(n<0||n>=hist.length)return;const at=(d<0?hist[hi]:hist[n]).pi;hi=n;pages=hist[hi].p.map(s=>JSON.parse(s));pi=Math.min(at,pages.length-1);objs=pages[pi];sel.clear();syncUI();save();requestDraw()}
+function undo(d){baseC=null;const n=hi+d;if(n<0||n>=hist.length)return;const at=(d<0?hist[hi]:hist[n]).pi;hi=n;pages=hist[hi].p.map(s=>JSON.parse(s));pi=Math.min(at,pages.length-1);objs=pages[pi];sel.clear();syncUI();save();requestDraw()}
 
 /* ---------- trang ---------- */
 function gotoPage(n){
   n=clamp(n,0,pages.length-1);if(n===pi)return;
-  commitText();pages[pi]=objs;pi=n;objs=pages[pi];sel.clear();view.y=0;syncUI();save();requestDraw();
+  commitText();pages[pi]=objs;pi=n;objs=pages[pi];sel.clear();view.y=0;baseC=null;syncUI();save();requestDraw();
 }
-function newPage(){commitText();pages[pi]=objs;pages.splice(pi+1,0,[]);pi++;objs=pages[pi];sel.clear();view.y=0;commit();toast('Đã thêm trang '+(pi+1))}
+function newPage(){commitText();pages[pi]=objs;pages.splice(pi+1,0,[]);pi++;objs=pages[pi];sel.clear();view.y=0;baseC=null;commit();toast('Đã thêm trang '+(pi+1))}
 function delPage(){
   commitText();
   if(pages.length===1)objs=[];else{pages.splice(pi,1);pi=Math.min(pi,pages.length-1);objs=pages[pi]}
-  sel.clear();view.y=0;commit();
+  sel.clear();view.y=0;baseC=null;commit();
 }
 
 /* ---------- toạ độ, thu phóng ---------- */
@@ -1895,7 +1905,31 @@ function eraseAt(p){
   if(drag.mode==='part'){const r=drag.r,out=[];for(const o of objs){if(o.lock||!erasable(o)||!hit(o,p,r)){out.push(o);continue}
       if(o.type==='stroke'){const s=splitStroke(o,p,r);if(s.length!==1||s[0]!==o)ch=true;out.push(...s)}else ch=true}if(ch)objs=out}
   else{const tol=8/view.s,n=objs.length;objs=objs.filter(o=>!(erasable(o)&&hit(o,p,tol)));ch=objs.length!==n}
-  if(ch)drag.changed=true;requestDraw()}
+  if(ch){drag.changed=true;baseC=null;requestDraw()}}
+function simplifyStroke(p,tol){
+  const n=p.length;if(n<=2)return p;
+  const tolSq=tol*tol,keep=new Uint8Array(n);
+  keep[0]=1;keep[n-1]=1;
+  const st=[[0,n-1]];
+  while(st.length){
+    const[i0,i1]=st.pop();
+    let maxD=0,idx=-1;
+    const x0=p[i0][0],y0=p[i0][1],dx=p[i1][0]-x0,dy=p[i1][1]-y0,L=dx*dx+dy*dy;
+    for(let i=i0+1;i<i1;i++){
+      const xi=p[i][0],yi=p[i][1];
+      const t=L===0?0:Math.max(0,Math.min(1,((xi-x0)*dx+(yi-y0)*dy)/L));
+      const px=x0+t*dx,py=y0+t*dy,d=(xi-px)*(xi-px)+(yi-py)*(yi-py);
+      if(d>maxD){maxD=d;idx=i}
+    }
+    if(maxD>tolSq){
+      keep[idx]=1;
+      if(idx-i0>1)st.push([i0,idx]);
+      if(i1-idx>1)st.push([idx,i1]);
+    }
+  }
+  const out=[];for(let i=0;i<n;i++)if(keep[i])out.push(p[i]);
+  return out;
+}
 /* ngón tay, bút trên bảng tương tác kém chính xác hơn chuột: vùng bấm của tay cầm rộng hơn */
 const touchTol=e=>e&&e.pointerType&&e.pointerType!=='mouse'?2.2:1;
 function onHandle(p,e){if(!sel.size)return false;const b=unionBox(sel),m=4/view.s;return Math.hypot(p.x-b.x-b.w-m,p.y-b.y-b.h-m)<=11*touchTol(e)/view.s}
@@ -2000,15 +2034,18 @@ function endPointer(e){
   if(d.type==='curtain'){commit();return}
   if(d.type==='inst')instUp(d);
   else if(d.type==='pan')setCursor();
-  else if(d.type==='draw'){objs.push(cur);cur=null;commit()}
-  else if(d.type==='shape'){const made=Math.hypot(cur.x2-cur.x1,cur.y2-cur.y1)>3/view.s?cur:null;if(made)objs.push(made);cur=null;commit();
+  else if(d.type==='draw'){
+    if(cur&&cur.pts&&cur.pts.length>3)cur.pts=simplifyStroke(cur.pts,0.4/view.s);
+    objs.push(cur);cur=null;commit()
+  }
+  else if(d.type==='shape'){baseC=null;const made=Math.hypot(cur.x2-cur.x1,cur.y2-cur.y1)>3/view.s?cur:null;if(made)objs.push(made);cur=null;commit();
     if(made&&made.type==='callout'){made.text='';made.fs=14+size*2.5;startCallText(made)}}
-  else if(d.type==='erase'){if(d.changed)commit()}
+  else if(d.type==='erase'){if(d.changed){baseC=null;commit()}}
   else if(d.type==='marquee'){
     const x=Math.min(d.a.x,d.b.x),y=Math.min(d.a.y,d.b.y),w=Math.abs(d.a.x-d.b.x),h=Math.abs(d.a.y-d.b.y);
     if(w>2||h>2)for(const o of objs){if(o.lock)continue;const b=bbox(o);if(b.x<x+w&&b.x+b.w>x&&b.y<y+h&&b.y+b.h>y)sel.add(o)}
   }
-  else if(d.moved)commit();
+  else if(d.moved){baseC=null;commit()}
   requestDraw();
 }
 cv.addEventListener('pointerup',endPointer);cv.addEventListener('pointercancel',endPointer);
@@ -5040,7 +5077,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.13.0';
+const APPVER='2.13.1';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
@@ -5267,15 +5304,22 @@ function drawPenStroke(c,o){
   const p=o.pts,n=p.length,s=o.size||4,col=res(o.color);
   c.lineCap=c.lineJoin='round';c.strokeStyle=c.fillStyle=col;
   if(n<2){c.beginPath();c.arc(p[0][0],p[0][1],s/2,0,7);c.fill();return}
-  const seg=(i,w)=>{c.lineWidth=w;c.beginPath();c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1]);c.stroke()};
+  let bw=-1;
+  const seg=(i,w)=>{
+    const rw=Math.round(w*4)/4;
+    if(bw<0){bw=rw;c.lineWidth=bw;c.beginPath();c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1])}
+    else if(Math.abs(rw-bw)<.25){c.lineTo(p[i][0],p[i][1])}
+    else{c.stroke();c.beginPath();bw=rw;c.lineWidth=bw;c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1])}
+  };
+  const flush=()=>{if(bw>=0){c.stroke();bw=-1}};
   const pr=i=>o.pr?.45+(p[i][2]||.5)*1.1:1;
   switch(o.pen){
-    case'fountain':{let w=s;for(let i=1;i<n;i++){const d=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]),t=s*clamp(1.55-d/(s*4),.38,1.55)*pr(i);w=w*.65+t*.35;seg(i,w)}break}
+    case'fountain':{let w=s;for(let i=1;i<n;i++){const d=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]),t=s*clamp(1.55-d/(s*4),.38,1.55)*pr(i);w=w*.65+t*.35;seg(i,w)}flush();break}
     case'calli':{const a=-Math.PI/4,nx=Math.cos(a)*s*.95,ny=Math.sin(a)*s*.95;
       for(let i=1;i<n;i++){const A=p[i-1],B=p[i];c.beginPath();c.moveTo(A[0]+nx,A[1]+ny);c.lineTo(B[0]+nx,B[1]+ny);c.lineTo(B[0]-nx,B[1]-ny);c.lineTo(A[0]-nx,A[1]-ny);c.closePath();c.fill()}
       strokePath(c,p);c.lineWidth=Math.max(.8,s*.18);c.stroke();break}
     case'brush':{const cum=[0];for(let i=1;i<n;i++)cum.push(cum[i-1]+Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]));const L=cum[n-1]||1,r=Math.min(s*7,L/2.2);
-      for(let i=1;i<n;i++){const m=(cum[i]+cum[i-1])/2,tp=Math.pow(clamp(Math.min(m,L-m)/r,0,1),.65);seg(i,s*1.7*Math.max(.12,tp)*pr(i))}break}
+      for(let i=1;i<n;i++){const m=(cum[i]+cum[i-1])/2,tp=Math.pow(clamp(Math.min(m,L-m)/r,0,1),.65);seg(i,s*1.7*Math.max(.12,tp)*pr(i))}flush();break}
     case'pencil':{c.globalAlpha=.85;strokePath(c,p);c.lineWidth=Math.max(1,s*.55);c.stroke();
       /* vân chì: hai lượt nét mảnh lệch nhẹ, lệch theo số thứ tự điểm nên vẽ lại vẫn y hệt */
       c.globalAlpha=.3;c.lineWidth=Math.max(.6,s*.28);for(const k of[1,2]){c.beginPath();p.forEach((q,i)=>{const j=Math.sin(i*12.9898*k+k)*s*.32,jy=Math.cos(i*78.233*k)*s*.32;i?c.lineTo(q[0]+j,q[1]+jy):c.moveTo(q[0]+j,q[1]+jy)});c.stroke()}
@@ -5300,8 +5344,8 @@ function syncPens(){
 }
 /* thanh thao tác cho đối tượng đang chọn */
 const SB=$('#selBar');
-function delSel(){const all=[...sel],d=all.filter(o=>!o.lock&&!o.pin),kept=all.filter(o=>o.pin).length;sel.clear();if(kept)setTimeout(()=>toast(kept+' đối tượng đang khoá nên không xoá. Chọn rồi bấm 🔓 để mở khoá trước.'),0);if(!d.length){requestDraw();return}objs=objs.filter(o=>!d.includes(o));commit();toast(d.length>1?'Đã xoá '+d.length+' đối tượng.':'Đã xoá.',UNDO_ACT)}
-function dupSel(){if(!sel.size)return;const n=[...sel].map(o=>{const c=clone(o);delete c.pin;moveObj(c,20,20);return c});objs.push(...n);sel=new Set(n);commit()}
+function delSel(){const all=[...sel],d=all.filter(o=>!o.lock&&!o.pin),kept=all.filter(o=>o.pin).length;sel.clear();if(kept)setTimeout(()=>toast(kept+' đối tượng đang khoá nên không xoá. Chọn rồi bấm 🔓 để mở khoá trước.'),0);if(!d.length){requestDraw();return}objs=objs.filter(o=>!d.includes(o));baseC=null;commit();toast(d.length>1?'Đã xoá '+d.length+' đối tượng.':'Đã xoá.',UNDO_ACT)}
+function dupSel(){if(!sel.size)return;const n=[...sel].map(o=>{const c=clone(o);delete c.pin;moveObj(c,20,20);return c});objs.push(...n);sel=new Set(n);baseC=null;commit()}
 function editObj(o){
   if(o.type==='robot')openRobot(o);else if(o.type==='code')openCode(o);else if(o.type==='flow')openFlow(o);else if(o.type==='nbase')openNbase(o);else if(o.type==='gates'||(o.type==='table'&&o.gen==='truth'))openLogic(o);
   else if(o.type==='sheet')openSheet(o);else if(o.type==='algo')openAlgo(o);else if(o.type==='scratch')openScratch(o);else if(o.type==='erd')openSql();
@@ -5309,7 +5353,7 @@ function editObj(o){
   else if(o.type==='bbt')openBBT(o);else if(o.type==='formula')openFormula(o);else if(o.type==='text'){sel.clear();startText(null,o)}
 }
 const EDITABLE=['robot','code','flow','nbase','gates','sheet','algo','scratch','erd','tvo','table','note','callout','chart','geo','tvfig','rev','graph','bbt','formula','text'];
-function orderSel(top){if(!sel.size)return;const keep=objs.filter(o=>!sel.has(o)),mv=objs.filter(o=>sel.has(o));objs=top?keep.concat(mv):mv.concat(keep);commit()}
+function orderSel(top){if(!sel.size)return;const keep=objs.filter(o=>!sel.has(o)),mv=objs.filter(o=>sel.has(o));objs=top?keep.concat(mv):mv.concat(keep);baseC=null;commit()}
 const sbBtn={
   del:mkBtn(SB,pa('M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6'),'Xoá đối tượng đang chọn (Delete)',delSel,'sbdel'),
   dup:mkBtn(SB,pa('M8 8h11v11H8zM5 16V5h11'),'Nhân đôi (Ctrl+D)',dupSel),
@@ -5338,7 +5382,7 @@ for(const b of $('#orSeg').children)b.onclick=()=>setOrientDoc(b.dataset.o);
 function hintOnce(k,msg){try{if(localStorage.getItem('bvt-hint-'+k))return;localStorage.setItem('bvt-hint-'+k,'1')}catch(_){return}toast(msg)}
 toolBtns.pen.classList.add('hasmore');
 /* xoá tất cả các trang (hoàn tác được) */
-function delAllPages(){commitText();const n=pages.length;pages=[[]];pi=0;objs=pages[0];sel.clear();view.y=0;commit();fit();toast('Đã xoá tất cả '+n+' trang.',UNDO_ACT)}
+function delAllPages(){commitText();const n=pages.length;pages=[[]];pi=0;objs=pages[0];sel.clear();view.y=0;baseC=null;commit();fit();toast('Đã xoá tất cả '+n+' trang.',UNDO_ACT)}
 $('#mDelAll').onclick=()=>{closePops();$('#daN').textContent=pages.length;$('#daDlg').showModal()};
 $('#daNo').onclick=()=>$('#daDlg').close();$('#daYes').onclick=()=>{$('#daDlg').close();delAllPages()};
 /* ---------- tẩy một phần nét, lau bảng bằng lòng bàn tay, vị trí thanh công cụ, công thức hoá học ----------
