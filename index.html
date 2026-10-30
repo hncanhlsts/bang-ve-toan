@@ -1954,7 +1954,7 @@ cv.addEventListener('pointerdown',e=>{
   const hd=instDown(p);if(hd){drag=hd;requestDraw();return}
   /* áp lòng bàn tay khi đang viết, vẽ: lau bảng */
   const palm=palmOf(e);if(palm&&(tool==='pen'||tool==='hl'||SHAPES.includes(tool))){palmNotice(Math.max(e.width,e.height));drag={type:'erase',changed:false,mode:'part',r:palm/view.s,palm:true};eraseAt(p);return}
-  if(tool==='pen'||tool==='hl'){cur={type:'stroke',pts:[[p.x,p.y,e.pressure||.5]],color,size,hl:tool==='hl',pr:e.pointerType==='pen',dash};if(tool==='pen'&&penType!=='ball')cur.pen=penType;drag={type:'draw'}}
+  if(tool==='pen'||tool==='hl'){cur={type:'stroke',pts:[[p.x,p.y,e.pressure||.5]],color,size,hl:tool==='hl',pr:e.pointerType==='pen',dash};if(tool==='pen'&&penType!=='ball')cur.pen=penType;drag={type:'draw',pid:e.pointerId}}
   else if(tool==='eraser'){drag={type:'erase',changed:false,mode:eraseMode,r:eraseRadius()};eraseAt(p)}
   else if(SHAPES.includes(tool)){cur={type:tool,x1:p.x,y1:p.y,x2:p.x,y2:p.y,color,size,fill,dash};drag={type:'shape'}}
   else if(tool==='stamp')stampAt(p);
@@ -1996,6 +1996,7 @@ cv.addEventListener('pointermove',e=>{
   else if(drag.type==='pan'){view.x=drag.vx-(e.clientX-drag.sx)/view.s;view.y=drag.vy-(e.clientY-drag.sy)/view.s}
   else if(drag.type==='draw'&&palmOf(e)&&cur.pts.length<12){cur=null;drag={type:'erase',changed:false,mode:'part',r:palmOf(e)/view.s,palm:true};eraseAt(p)}
   else if(drag.type==='draw'){
+    if(drag.pid&&drag.pid!==e.pointerId)return;
     const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
     for(const ev of(evs.length?evs:[e])){const q=toWorld(ev),l=cur.pts[cur.pts.length-1];
       if(Math.hypot(q.x-l[0],q.y-l[1])>1/view.s)cur.pts.push([+q.x.toFixed(2),+q.y.toFixed(2),+(ev.pressure||.5).toFixed(2)])}
@@ -2035,6 +2036,7 @@ function endPointer(e){
   if(d.type==='inst')instUp(d);
   else if(d.type==='pan')setCursor();
   else if(d.type==='draw'){
+    if(d.pid&&d.pid!==e.pointerId){drag=d;return}
     if(cur&&cur.pts&&cur.pts.length>3)cur.pts=simplifyStroke(cur.pts,0.4/view.s);
     objs.push(cur);cur=null;commit()
   }
