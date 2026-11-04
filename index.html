@@ -2089,6 +2089,11 @@ cv.addEventListener('pointerdown',e=>{
       smartFinishPolygon(true);
       return;
     }
+    if(smartDraw.pts.length===1&&snap&&(snap.type==='bisector_cut'||snap.type==='altitude_cut'||snap.type==='midpoint'||snap.type==='on_seg')){
+      smartDraw.pts.push(target);
+      smartFinishPolygon(false);
+      return;
+    }
     smartDraw.pts.push(target);
     smartDraw.curP=p;
     smartDraw.downP=p;
@@ -2233,6 +2238,10 @@ function endPointer(e){
       const lastP=smartDraw.pts[smartDraw.pts.length-1];
       if(Math.hypot(target[0]-lastP[0],target[1]-lastP[1])>10/view.s){
         smartDraw.pts.push(target);
+        if(smartDraw.pts.length===2&&snap&&(snap.type==='bisector_cut'||snap.type==='altitude_cut'||snap.type==='midpoint'||snap.type==='on_seg')){
+          smartFinishPolygon(false);
+          return;
+        }
       }
     }
     requestDraw();
@@ -4327,8 +4336,8 @@ initCutDlg();
 if ($('#shapeCutPaste')) $('#shapeCutPaste').onclick = openCutDlg;
 
 /* ---------- 15d-bat-diem-hinh-hoc.js: Công cụ vẽ hình bắt điểm động kiểu Efofex FX Draw ---------- */
-/* Cho phép vẽ liên hoàn đa giác/tam giác: vẽ cạnh 1 -> bẻ góc cạnh 2 -> nối về điểm đầu khép kín tam giác.
-   Hệ thống suy luận hình học thời gian thực: trung điểm, vuông góc 90°, song song, phân giác, bằng độ dài, góc đặc biệt. */
+/* Tự động suy luận hình học: Phân giác góc, Đường cao, Trung tuyến, Trung trực, Vuông góc, Song song, Bằng độ dài.
+   Quản lý định danh đỉnh thông minh: tự nhận diện tên điểm có sẵn (A, B, C), không bao giờ sinh tên trùng lặp. */
 
 let smartDraw = {
   pts: [],          // mảng các đỉnh đã chốt [[x, y], ...]
@@ -4338,25 +4347,101 @@ let smartDraw = {
   moved: false
 };
 
-/* Thu thập tất cả các đoạn thẳng và đỉnh có trên bảng vẽ */
+/* Lấy danh sách các chữ cái chưa được dùng trên trang vẽ */
+function smartGetUnusedLetters(preferred = null) {
+  const used = new Set();
+  for (const o of objs) {
+    if (o.type === 'text') {
+      const t = o.text.trim();
+      if (/^[A-Z]$/.test(t)) used.add(t);
+    }
+    if (o.vertLabels && Array.isArray(o.vertLabels)) {
+      o.vertLabels.forEach(l => { if (/^[A-Z]$/.test(l)) used.add(l); });
+    }
+  }
+
+  // Nếu có chữ cái gợi ý ưu tiên và chưa bị dùng (ví dụ 'D' cho phân giác, 'H' cho đường cao, 'M' cho trung điểm)
+  if (preferred && !used.has(preferred)) return preferred;
+
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (let i = 0; i < alphabet.length; i++) {
+    const ch = alphabet[i];
+    if (!used.has(ch)) return ch;
+  }
+  return 'X';
+}
+
+/* Thêm nhãn chữ cho đỉnh chỉ khi vị trí đó CHƯA có nhãn nào gần kề */
+function smartAddLabelIfMissing(x, y, name, outwardDir) {
+  if (!name) return;
+  // Kiểm tra xem trong bán kính 22px đã có nhãn chữ cái nào chưa
+  const exists = objs.some(o => o.type === 'text' && Math.hypot(o.x - x, o.y - y) < 22 / view.s);
+  if (exists) return;
+
+  const ox = outwardDir ? outwardDir[0] * 15 / view.s : 6 / view.s;
+  const oy = outwardDir ? outwardDir[1] * 15 / view.s : -10 / view.s;
+
+  objs.push({
+    type: 'text',
+    x: +(x + ox).toFixed(2),
+    y: +(y + oy).toFixed(2),
+    text: name,
+    color: 'ink',
+    fs: 17,
+    bold: true,
+    ital: true
+  });
+}
+
+/* Thu thập tất cả các đoạn thẳng, đỉnh và nhãn chữ có trên bảng vẽ */
 function smartCollectGeometry() {
   const segs = [];
   const pts = [];
 
-  const addPt = (p, name) => {
-    if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
-    if (!pts.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-3)) pts.push([p[0], p[1], name || '']);
+  // 1. Quét tất cả các nhãn chữ cái A-Z trên trang để gắn tên chuẩn cho các đỉnh
+  const existingLabels = [];
+  for (const o of objs) {
+    if (o.type === 'text' && /^[A-Z]$/.test(o.text.trim())) {
+      existingLabels.push({ text: o.text.trim(), x: o.x, y: o.y });
+    }
+  }
+
+  const findNameForPt = (x, y) => {
+    let best = null, bd = 28 / view.s;
+    for (const l of existingLabels) {
+      const d = Math.hypot(l.x - x, l.y - y);
+      if (d < bd) { bd = d; best = l.text; }
+    }
+    return best || '';
   };
 
-  const addSeg = (p1, p2) => {
+  const addPt = (p, name) => {
+    if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
+    const existing = pts.find(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 4 / view.s);
+    if (!existing) {
+      const detectedName = name || findNameForPt(p[0], p[1]);
+      pts.push([p[0], p[1], detectedName]);
+    } else if (!existing[2] && name) {
+      existing[2] = name;
+    }
+  };
+
+  const addSeg = (p1, p2, name1, name2) => {
     if (!p1 || !p2) return;
     const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
     if (len < 1e-2) return;
-    addPt(p1); addPt(p2);
-    segs.push({ p1: [p1[0], p1[1]], p2: [p2[0], p2[1]], len, ang: Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) });
+    addPt(p1, name1); addPt(p2, name2);
+    const n1 = findNameForPt(p1[0], p1[1]), n2 = findNameForPt(p2[0], p2[1]);
+    segs.push({
+      p1: [p1[0], p1[1]],
+      p2: [p2[0], p2[1]],
+      n1, n2,
+      len,
+      ang: Math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+    });
   };
 
-  // 1. Từ các hình trên bảng
+  // 2. Thu thập từ các đối tượng hình vẽ trên bảng
   for (const o of objs) {
     if (o.hidden) continue;
     if (o.type === 'line' || o.type === 'arrow') {
@@ -4370,7 +4455,10 @@ function smartCollectGeometry() {
       addSeg(t[0], t[1]); addSeg(t[1], t[2]); addSeg(t[2], t[0]);
     } else if (o.type === 'piece' && o.pts && o.pts.length >= 2) {
       for (let i = 0; i < o.pts.length; i++) {
-        addSeg(o.pts[i], o.pts[(i + 1) % o.pts.length]);
+        const nextIdx = (i + 1) % o.pts.length;
+        const n1 = o.vertLabels ? o.vertLabels[i] : '';
+        const n2 = o.vertLabels ? o.vertLabels[nextIdx] : '';
+        addSeg(o.pts[i], o.pts[nextIdx], n1, n2);
       }
     } else if (o.type === 'geo') {
       const V = geoSolve(o);
@@ -4382,7 +4470,7 @@ function smartCollectGeometry() {
     }
   }
 
-  // 2. Từ các cạnh đang vẽ dở trong smartDraw
+  // 3. Từ các cạnh đang vẽ dở trong smartDraw
   if (smartDraw.pts.length >= 2) {
     for (let i = 0; i < smartDraw.pts.length - 1; i++) {
       addSeg(smartDraw.pts[i], smartDraw.pts[i + 1]);
@@ -4400,11 +4488,31 @@ function smartAngDiff(a, b) {
   return d;
 }
 
+/* Giao điểm giữa tia (gốc A, góc dirAng) và đoạn thẳng BC */
+function smartRaySegInter(A, dirAng, B, C) {
+  const vx = Math.cos(dirAng), vy = Math.sin(dirAng);
+  const wx = C[0] - B[0], wy = C[1] - B[1];
+  const D = vy * wx - vx * wy;
+  if (Math.abs(D) < 1e-6) return null;
+  const t = ((A[0] - B[0]) * wy - (A[1] - B[1]) * wx) / D;
+  const s = (vx * (B[1] - A[1]) - vy * (B[0] - A[0])) / D;
+  if (t > 1e-3 && s >= -1e-4 && s <= 1 + 1e-4) {
+    return {
+      pt: [B[0] + s * wx, B[1] + s * wy],
+      t,
+      s: clamp(s, 0, 1)
+    };
+  }
+  return null;
+}
+
 /* Bộ suy luận bắt điểm động (Efofex-style Dynamic Snapping) */
 function smartSnap(rawP, baseP, currentPts) {
   const p = { x: rawP.x, y: rawP.y };
   const tol = 16 / view.s;
-  const angTol = 0.065; // ~3.7 độ
+  const angTol = 0.085; // ~4.8 độ
+
+  const { segs, pts } = smartCollectGeometry();
 
   // 1. ƯU TIÊN 1: Khép kín hình về đỉnh đầu tiên
   if (currentPts && currentPts.length >= 2) {
@@ -4420,9 +4528,7 @@ function smartSnap(rawP, baseP, currentPts) {
     }
   }
 
-  const { segs, pts } = smartCollectGeometry();
-
-  // 2. ƯU TIÊN 2: Bắt vào đỉnh / điểm mút có sẵn
+  // 2. ƯU TIÊN 2: Bắt vào đỉnh / điểm mút có sẵn (Vertex Snap)
   let bestPt = null, bestPtDist = tol;
   for (const q of pts) {
     const d = Math.hypot(p.x - q[0], p.y - q[1]);
@@ -4435,7 +4541,8 @@ function smartSnap(rawP, baseP, currentPts) {
     return {
       type: 'vertex',
       pt: [bestPt[0], bestPt[1]],
-      label: bestPt[2] ? ('Điểm ' + bestPt[2]) : 'Đỉnh',
+      name: bestPt[2] || '',
+      label: bestPt[2] ? ('Đỉnh ' + bestPt[2]) : 'Đỉnh',
       color: '#2563eb'
     };
   }
@@ -4452,16 +4559,17 @@ function smartSnap(rawP, baseP, currentPts) {
     }
   }
   if (bestMid) {
+    const segName = (bestMidSeg.n1 && bestMidSeg.n2) ? (bestMidSeg.n1 + bestMidSeg.n2) : '';
     return {
       type: 'midpoint',
       pt: bestMid,
       seg: bestMidSeg,
-      label: 'Trung điểm M',
+      label: segName ? ('Trung điểm M của ' + segName) : 'Trung điểm M',
       color: '#f59e0b'
     };
   }
 
-  // Nếu chưa có đỉnh gốc để kéo cạnh tiếp theo: chỉ bắt điểm tĩnh
+  // Nếu chưa có đỉnh gốc để kéo cạnh tiếp theo: dừng tại đây
   if (!baseP) return null;
 
   // Tính vector từ đỉnh gốc đến con trỏ
@@ -4471,8 +4579,110 @@ function smartSnap(rawP, baseP, currentPts) {
 
   const curAng = Math.atan2(vy, vx);
 
-  // 4. ƯU TIÊN 4: Bắt vuông góc 90° (Perpendicular Snap)
-  // Ưu tiên vuông góc với cạnh liền trước trong chuỗi đa giác đang vẽ
+  // 4. ƯU TIÊN 4: TIA PHÂN GIÁC CỦA GÓC ĐÃ CÓ TẠI ĐỈNH baseP
+  // Tìm tất cả các cạnh trên bảng xuất phát hoặc kết thúc tại baseP
+  const incidentSegs = [];
+  for (const s of segs) {
+    const d1 = Math.hypot(s.p1[0] - baseP[0], s.p1[1] - baseP[1]);
+    const d2 = Math.hypot(s.p2[0] - baseP[0], s.p2[1] - baseP[1]);
+    if (d1 < 4 / view.s) {
+      incidentSegs.push({ otherP: s.p2, name: s.n2, ang: Math.atan2(s.p2[1] - baseP[1], s.p2[0] - baseP[0]), seg: s });
+    } else if (d2 < 4 / view.s) {
+      incidentSegs.push({ otherP: s.p1, name: s.n1, ang: Math.atan2(s.p1[1] - baseP[1], s.p1[0] - baseP[0]), seg: s });
+    }
+  }
+
+  // Nếu baseP là đỉnh có từ 2 cạnh trở lên (ví dụ góc A của tam giác ABC)
+  let basePtObj = pts.find(q => Math.hypot(q[0] - baseP[0], q[1] - baseP[1]) < 4 / view.s);
+  const baseName = basePtObj ? basePtObj[2] : '';
+
+  if (incidentSegs.length >= 2) {
+    // Xét các cặp cạnh tạo góc tại baseP
+    for (let i = 0; i < incidentSegs.length; i++) {
+      for (let j = i + 1; j < incidentSegs.length; j++) {
+        const ray1 = incidentSegs[i], ray2 = incidentSegs[j];
+        const diffAng = smartAngDiff(ray2.ang, ray1.ang);
+        if (Math.abs(diffAng) > 0.1 && Math.abs(diffAng) < Math.PI - 0.05) {
+          // Tia phân giác trong
+          const bisAng = ray1.ang + diffAng / 2;
+          const diffWithCursor = Math.abs(smartAngDiff(curAng, bisAng));
+
+          if (diffWithCursor < angTol) {
+            // Tìm cạnh đối diện nối ray1.otherP và ray2.otherP
+            const oppInter = smartRaySegInter(baseP, bisAng, ray1.otherP, ray2.otherP);
+            const letterD = smartGetUnusedLetters('D');
+
+            // Nếu con trỏ đưa gần cạnh đối diện: snap chặt vào giao điểm phân giác với cạnh đối
+            if (oppInter && Math.abs(len - oppInter.t) < 22 / view.s) {
+              return {
+                type: 'bisector_cut',
+                pt: oppInter.pt,
+                basePt: baseP,
+                ray1, ray2,
+                baseName,
+                assignedName: letterD,
+                label: 'Phân giác góc ' + (baseName || 'A') + ' cắt cạnh đối tại ' + letterD,
+                color: '#0284c7'
+              };
+            }
+
+            // Còn lại: snap theo tia phân giác
+            return {
+              type: 'bisector_ray',
+              pt: [baseP[0] + len * Math.cos(bisAng), baseP[1] + len * Math.sin(bisAng)],
+              basePt: baseP,
+              ray1, ray2,
+              baseName,
+              label: 'Tia phân giác góc ' + (baseName || 'A'),
+              color: '#0284c7'
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 5. ƯU TIÊN 5: ĐƯỜNG CAO (Vuông góc từ đỉnh baseP xuống cạnh đối diện)
+  if (incidentSegs.length >= 2) {
+    for (let i = 0; i < incidentSegs.length; i++) {
+      for (let j = i + 1; j < incidentSegs.length; j++) {
+        const B = incidentSegs[i].otherP, C = incidentSegs[j].otherP;
+        const dx = C[0] - B[0], dy = C[1] - B[1], l2 = dx * dx + dy * dy;
+        if (l2 > 1) {
+          const s = ((baseP[0] - B[0]) * dx + (baseP[1] - B[1]) * dy) / l2;
+          const H = [B[0] + s * dx, B[1] + s * dy];
+          const altAng = Math.atan2(H[1] - baseP[1], H[0] - baseP[0]);
+          const altLen = Math.hypot(H[0] - baseP[0], H[1] - baseP[1]);
+
+          if (Math.abs(smartAngDiff(curAng, altAng)) < angTol) {
+            const letterH = smartGetUnusedLetters('H');
+            const oppName = (incidentSegs[i].name && incidentSegs[j].name) ? (incidentSegs[i].name + incidentSegs[j].name) : 'cạnh đối';
+            if (Math.abs(len - altLen) < 22 / view.s && s >= 0 && s <= 1) {
+              return {
+                type: 'altitude_cut',
+                pt: H,
+                basePt: baseP,
+                foot: H,
+                oppSeg: { p1: B, p2: C },
+                assignedName: letterH,
+                label: 'Đường cao ' + (baseName || 'A') + letterH + ' ⟂ ' + oppName,
+                color: '#e11d48'
+              };
+            }
+            return {
+              type: 'perp',
+              pt: [baseP[0] + len * Math.cos(altAng), baseP[1] + len * Math.sin(altAng)],
+              basePt: baseP,
+              label: 'Đường cao ⟂ ' + oppName,
+              color: '#e11d48'
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 6. ƯU TIÊN 6: Bắt vuông góc 90° tổng quát với cạnh kề hoặc cạnh bất kỳ
   let bestPerp = null, bestPerpDiff = angTol;
   const candidateSegs = [];
   if (currentPts && currentPts.length >= 2) {
@@ -4489,13 +4699,12 @@ function smartSnap(rawP, baseP, currentPts) {
     const minDiff = Math.min(diff1, diff2);
     const targetAng = diff1 < diff2 ? perp1 : perp2;
 
-    const weight = s.isPrev ? 0.015 : 0; // ưu tiên cạnh kề
+    const weight = s.isPrev ? 0.015 : 0;
     if (minDiff - weight < bestPerpDiff) {
       bestPerpDiff = minDiff - weight;
-      const snapLen = len;
       bestPerp = {
         type: 'perp',
-        pt: [baseP[0] + snapLen * Math.cos(targetAng), baseP[1] + snapLen * Math.sin(targetAng)],
+        pt: [baseP[0] + len * Math.cos(targetAng), baseP[1] + len * Math.sin(targetAng)],
         refSeg: s,
         basePt: baseP,
         label: 'Vuông góc 90°',
@@ -4504,7 +4713,7 @@ function smartSnap(rawP, baseP, currentPts) {
     }
   }
 
-  // 5. ƯU TIÊN 5: Bắt song song (Parallel Snap ∥)
+  // 7. ƯU TIÊN 7: Bắt song song ∥ với cạnh bất kỳ
   let bestPara = null, bestParaDiff = angTol;
   for (const s of segs) {
     if (s.isPrev) continue;
@@ -4525,35 +4734,9 @@ function smartSnap(rawP, baseP, currentPts) {
     }
   }
 
-  // 6. ƯU TIÊN 6: Bắt phân giác (Angle Bisector)
-  let bestBis = null;
-  if (currentPts && currentPts.length >= 2) {
-    const prevPt = currentPts[currentPts.length - 2];
-    const inAng = Math.atan2(prevPt[1] - baseP[1], prevPt[0] - baseP[0]); // hướng ngược lại từ đỉnh
-    // Góc giữa inAng và curAng
-    const dAng = smartAngDiff(curAng, inAng);
-    // Tia đối hoặc tia phân giác ngoài/trong
-    const bisAng1 = inAng + Math.PI / 2;
-    const bisAng2 = inAng - Math.PI / 2;
-    const diffB1 = Math.abs(smartAngDiff(curAng, bisAng1));
-    const diffB2 = Math.abs(smartAngDiff(curAng, bisAng2));
-    const minDiffB = Math.min(diffB1, diffB2);
-    if (minDiffB < angTol) {
-      const targetBis = diffB1 < diffB2 ? bisAng1 : bisAng2;
-      bestBis = {
-        type: 'bisector',
-        pt: [baseP[0] + len * Math.cos(targetBis), baseP[1] + len * Math.sin(targetBis)],
-        basePt: baseP,
-        label: 'Phân giác',
-        color: '#0ea5e9'
-      };
-    }
-  }
-
-  // 7. ƯU TIÊN 7: Bắt bằng độ dài với cạnh trước (Equal Length)
-  let snapPt = bestPerp ? bestPerp.pt : (bestPara ? bestPara.pt : (bestBis ? bestBis.pt : [p.x, p.y]));
-  let hasAngleSnap = !!(bestPerp || bestPara || bestBis);
-  let activeSnap = bestPerp || bestPara || bestBis;
+  // 8. Bắt bằng độ dài với cạnh trước
+  let snapPt = bestPerp ? bestPerp.pt : (bestPara ? bestPara.pt : [p.x, p.y]);
+  let activeSnap = bestPerp || bestPara;
 
   if (currentPts && currentPts.length >= 2) {
     const prevPt = currentPts[currentPts.length - 2];
@@ -4571,7 +4754,6 @@ function smartSnap(rawP, baseP, currentPts) {
         type: 'equal_len',
         pt: eqPt,
         basePt: baseP,
-        refPt: prevPt,
         label: 'Bằng cạnh trước (a = b)',
         color: '#059669'
       };
@@ -4580,11 +4762,11 @@ function smartSnap(rawP, baseP, currentPts) {
 
   if (activeSnap) return activeSnap;
 
-  // 8. Bắt các góc đặc biệt (0°, 30°, 45°, 60°, 90°, 120°, 135°, 150°, 180°)
+  // 9. Bắt các góc đặc biệt (0°, 30°, 45°, 60°, 90°, 120°, 150°, 180°)
   const degAngles = [0, 30, 45, 60, 90, 120, 135, 150, 180, -30, -45, -60, -90, -120, -135, -150];
   for (const d of degAngles) {
     const rad = d * Math.PI / 180;
-    if (Math.abs(smartAngDiff(curAng, rad)) < 0.05) {
+    if (Math.abs(smartAngDiff(curAng, rad)) < 0.045) {
       return {
         type: 'angle',
         pt: [baseP[0] + len * Math.cos(rad), baseP[1] + len * Math.sin(rad)],
@@ -4595,7 +4777,7 @@ function smartSnap(rawP, baseP, currentPts) {
     }
   }
 
-  // 9. Bắt điểm thuộc đoạn thẳng (Point on segment)
+  // 10. Bắt điểm thuộc đoạn thẳng bất kỳ (Point on segment)
   for (const s of segs) {
     const d = distSeg(p.x, p.y, s.p1[0], s.p1[1], s.p2[0], s.p2[1]);
     if (d < 8 / view.s) {
@@ -4606,7 +4788,7 @@ function smartSnap(rawP, baseP, currentPts) {
         type: 'on_seg',
         pt: [s.p1[0] + t * dx, s.p1[1] + t * dy],
         seg: s,
-        label: 'Thuộc đoạn',
+        label: 'Thuộc đoạn thẳng',
         color: '#64748b'
       };
     }
@@ -4615,7 +4797,7 @@ function smartSnap(rawP, baseP, currentPts) {
   return null;
 }
 
-/* Hoàn thành đa giác khép kín hoặc đường gấp khúc */
+/* Hoàn thành vẽ đa giác khép kín hoặc đường gấp khúc */
 function smartFinishPolygon(closed = true) {
   if (smartDraw.pts.length < 2) {
     smartResetDraw();
@@ -4623,10 +4805,30 @@ function smartFinishPolygon(closed = true) {
   }
 
   const pts = smartDraw.pts.slice();
-  const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].slice(0, pts.length);
 
+  // Khép kín đa giác (từ 3 đỉnh trở lên)
   if (closed && pts.length >= 3) {
-    // Tạo đối tượng đa giác / tam giác phẳng hoàn chỉnh
+    // Thu thập các chữ cái thích hợp cho các đỉnh chưa có tên
+    const assignedNames = [];
+    pts.forEach(pt => {
+      // Xem điểm này có nhãn sẵn gần đó không
+      let existingLabel = '';
+      for (const o of objs) {
+        if (o.type === 'text' && /^[A-Z]$/.test(o.text.trim())) {
+          if (Math.hypot(o.x - pt[0], o.y - pt[1]) < 24 / view.s) {
+            existingLabel = o.text.trim();
+            break;
+          }
+        }
+      }
+      if (existingLabel) {
+        assignedNames.push(existingLabel);
+      } else {
+        const nextChar = smartGetUnusedLetters();
+        assignedNames.push(nextChar);
+      }
+    });
+
     const poly = {
       type: 'piece',
       kind: 'poly',
@@ -4636,39 +4838,27 @@ function smartFinishPolygon(closed = true) {
       alpha: fill ? 0.22 : 0.06,
       size: size || 2,
       dash: dash,
-      vertLabels: names
+      vertLabels: assignedNames
     };
 
-    // Tạo các nhãn chữ A, B, C... đặt chuẩn ở phía NGOÀI đa giác
+    // Tạo các nhãn chữ cái mới cho các đỉnh chưa có nhãn
     const [cx, cy] = cgCentroid(pts);
-    const textObjs = [];
     pts.forEach((pt, i) => {
       const dx = pt[0] - cx, dy = pt[1] - cy, len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len, uy = dy / len;
-      const tx = pt[0] + ux * 16 / view.s;
-      const ty = pt[1] + uy * 16 / view.s;
-      textObjs.push({
-        type: 'text',
-        x: tx - 6 / view.s,
-        y: ty - 10 / view.s,
-        text: names[i] || '',
-        color: 'ink',
-        fs: 17,
-        bold: true,
-        ital: true
-      });
+      const u = [dx / len, dy / len];
+      smartAddLabelIfMissing(pt[0], pt[1], assignedNames[i], u);
     });
 
     objs.push(poly);
-    objs.push(...textObjs);
     sel.clear();
     sel.add(poly);
     commit();
 
-    const shapeName = pts.length === 3 ? 'tam giác ' + names.join('') : (pts.length === 4 ? 'tứ giác ' + names.join('') : 'đa giác ' + pts.length + ' cạnh');
+    const shapeName = pts.length === 3 ? 'tam giác ' + assignedNames.join('') : 'đa giác ' + pts.length + ' cạnh';
     toast('Đã vẽ ' + shapeName + ' khép kín!');
-  } else {
-    // Không khép kín: tạo thành chuỗi các đoạn thẳng
+  }
+  // Đoạn thẳng đơn hoặc chuỗi đoạn thẳng (đường gấp khúc / phân giác / đường cao)
+  else {
     for (let i = 0; i < pts.length - 1; i++) {
       objs.push({
         type: 'line',
@@ -4681,8 +4871,16 @@ function smartFinishPolygon(closed = true) {
         dash: dash
       });
     }
+
+    // Nếu điểm cuối là một điểm đặc biệt (như phân giác D, đường cao H, trung điểm M), gắn nhãn duy nhất cho nó
+    const lastP = pts[pts.length - 1];
+    const snap = smartDraw.snap;
+    if (snap && snap.assignedName) {
+      smartAddLabelIfMissing(lastP[0], lastP[1], snap.assignedName, [1, 0]);
+    }
+
     commit();
-    toast('Đã vẽ đường gấp khúc ' + (pts.length - 1) + ' đoạn!');
+    toast('Đã vẽ đoạn thẳng hoàn tất!');
   }
 
   smartResetDraw();
@@ -4712,7 +4910,7 @@ function drawSmartHUD(c, scale) {
   const snap = smartDraw.snap;
   const cur = snap ? { x: snap.pt[0], y: snap.pt[1] } : curRaw;
 
-  // 1. Vẽ các cạnh và đỉnh đã chốt
+  // 1. Vẽ các cạnh đã chốt
   if (pts.length > 0) {
     c.strokeStyle = res(color || 'ink');
     c.lineWidth = (size || 2);
@@ -4720,25 +4918,18 @@ function drawSmartHUD(c, scale) {
     pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
     c.stroke();
 
-    // Vẽ chấm tròn và tên chữ tại các đỉnh đã chốt
-    pts.forEach((p, i) => {
+    // Vẽ chấm tròn tại các đỉnh đã chốt (chỉ chấm tròn nhỏ trang nhã, KHÔNG vẽ đè chữ cái lên làm rối hình)
+    pts.forEach(p => {
       c.fillStyle = '#2563eb';
       c.beginPath();
-      c.arc(p[0], p[1], 4.5 / scale, 0, 7);
+      c.arc(p[0], p[1], 4 / scale, 0, 7);
       c.fill();
       c.strokeStyle = '#fff';
-      c.lineWidth = 1.5 / scale;
+      c.lineWidth = 1.2 / scale;
       c.stroke();
-
-      const label = String.fromCharCode(65 + i); // A, B, C...
-      c.font = 'bold ' + (14 / scale) + 'px "Times New Roman",serif';
-      c.fillStyle = '#1e293b';
-      c.textAlign = 'right';
-      c.textBaseline = 'bottom';
-      c.fillText(label, p[0] - 6 / scale, p[1] - 6 / scale);
     });
 
-    // 2. Vẽ nét kéo động (rubberband) từ đỉnh cuối tới vị trí hiện tại
+    // 2. Vẽ nét kéo động (rubberband) từ đỉnh cuối tới con trỏ
     if (cur) {
       const lastP = pts[pts.length - 1];
       c.strokeStyle = snap ? snap.color : '#2563eb';
@@ -4756,8 +4947,68 @@ function drawSmartHUD(c, scale) {
   if (cur && snap) {
     const sp = snap.pt;
 
-    // a) Điểm khép kín hình
-    if (snap.type === 'close') {
+    // a) Phân giác góc: vẽ 2 cung góc bằng nhau tại đỉnh góc
+    if ((snap.type === 'bisector_ray' || snap.type === 'bisector_cut') && snap.basePt && snap.ray1 && snap.ray2) {
+      const bp = snap.basePt;
+      const r = 24 / scale;
+      const a1 = snap.ray1.ang, a2 = snap.ray2.ang;
+      const diffA = smartAngDiff(a2, a1);
+      const bisA = a1 + diffA / 2;
+
+      c.strokeStyle = '#0284c7';
+      c.lineWidth = 1.4 / scale;
+
+      // Cung 1
+      c.beginPath();
+      c.arc(bp[0], bp[1], r, a1, bisA, diffA < 0);
+      c.stroke();
+
+      // Cung 2
+      c.beginPath();
+      c.arc(bp[0], bp[1], r, bisA, a2, diffA < 0);
+      c.stroke();
+
+      // Hai chấm nhỏ hoặc vạch chia đánh dấu 2 góc bằng nhau
+      const midA1 = a1 + diffA / 4, midA2 = bisA + diffA / 4;
+      c.fillStyle = '#0284c7';
+      c.beginPath(); c.arc(bp[0] + Math.cos(midA1) * r, bp[1] + Math.sin(midA1) * r, 2 / scale, 0, 7); c.fill();
+      c.beginPath(); c.arc(bp[0] + Math.cos(midA2) * r, bp[1] + Math.sin(midA2) * r, 2 / scale, 0, 7); c.fill();
+
+      // Chấm tròn điểm cắt trên cạnh đối
+      if (snap.type === 'bisector_cut') {
+        c.fillStyle = '#0284c7';
+        c.beginPath(); c.arc(sp[0], sp[1], 5 / scale, 0, 7); c.fill();
+        c.strokeStyle = '#fff'; c.lineWidth = 1.5 / scale; c.stroke();
+      }
+    }
+    // b) Đường cao: vẽ ký hiệu vuông góc tại chân đường cao
+    else if ((snap.type === 'altitude_cut' || snap.type === 'perp') && snap.basePt) {
+      const bp = snap.basePt;
+      c.strokeStyle = '#e11d48';
+      c.lineWidth = 1.6 / scale;
+
+      const u1 = [cur.x - bp[0], cur.y - bp[1]], l1 = Math.hypot(u1[0], u1[1]) || 1;
+      const v1 = [u1[0] / l1 * 12 / scale, u1[1] / l1 * 12 / scale];
+      const v2 = [-v1[1], v1[0]];
+
+      if (snap.type === 'altitude_cut') {
+        // Vẽ vuông góc tại điểm chân H
+        c.beginPath();
+        c.moveTo(sp[0] - v1[0], sp[1] - v1[1]);
+        c.lineTo(sp[0] - v1[0] + v2[0], sp[1] - v1[1] + v2[1]);
+        c.lineTo(sp[0] + v2[0], sp[1] + v2[1]);
+        c.stroke();
+      } else {
+        // Vẽ vuông góc tại đỉnh góc
+        c.beginPath();
+        c.moveTo(bp[0] + v1[0], bp[1] + v1[1]);
+        c.lineTo(bp[0] + v1[0] + v2[0], bp[1] + v1[1] + v2[1]);
+        c.lineTo(bp[0] + v2[0], bp[1] + v2[1]);
+        c.stroke();
+      }
+    }
+    // c) Khép kín hình
+    else if (snap.type === 'close') {
       c.strokeStyle = '#10b981';
       c.lineWidth = 2.5 / scale;
       c.beginPath();
@@ -4766,71 +5017,38 @@ function drawSmartHUD(c, scale) {
 
       c.fillStyle = 'rgba(16, 185, 129, 0.25)';
       c.beginPath();
-      c.arc(sp[0], sp[1], 15 / scale, 0, 7);
+      c.arc(sp[0], sp[1], 16 / scale, 0, 7);
       c.fill();
     }
-    // b) Điểm đỉnh / mút
-    else if (snap.type === 'vertex') {
-      c.strokeStyle = '#2563eb';
-      c.lineWidth = 2.2 / scale;
-      c.beginPath();
-      c.arc(sp[0], sp[1], 8 / scale, 0, 7);
-      c.stroke();
-    }
-    // c) Điểm trung điểm
+    // d) Trung điểm
     else if (snap.type === 'midpoint') {
       c.fillStyle = '#f59e0b';
-      c.beginPath();
-      c.arc(sp[0], sp[1], 5 / scale, 0, 7);
-      c.fill();
-      c.strokeStyle = '#fff';
-      c.lineWidth = 1.5 / scale;
-      c.stroke();
+      c.beginPath(); c.arc(sp[0], sp[1], 5 / scale, 0, 7); c.fill();
+      c.strokeStyle = '#fff'; c.lineWidth = 1.5 / scale; c.stroke();
 
-      // Ký hiệu hình thoi / M
       c.strokeStyle = '#f59e0b';
       c.lineWidth = 1.8 / scale;
       c.strokeRect(sp[0] - 6 / scale, sp[1] - 6 / scale, 12 / scale, 12 / scale);
     }
-    // d) Ký hiệu góc vuông 90°
-    else if (snap.type === 'perp' && snap.basePt) {
-      const bp = snap.basePt;
-      const u1 = [cur.x - bp[0], cur.y - bp[1]], l1 = Math.hypot(u1[0], u1[1]) || 1;
-      const v1 = [u1[0] / l1 * 12 / scale, u1[1] / l1 * 12 / scale];
-      let v2;
-      if (snap.refSeg) {
-        const u2 = [snap.refSeg.p1[0] - bp[0], snap.refSeg.p1[1] - bp[1]];
-        const u2b = [snap.refSeg.p2[0] - bp[0], snap.refSeg.p2[1] - bp[1]];
-        const pick = Math.hypot(u2[0], u2[1]) > Math.hypot(u2b[0], u2b[1]) ? u2 : u2b;
-        const l2 = Math.hypot(pick[0], pick[1]) || 1;
-        v2 = [pick[0] / l2 * 12 / scale, pick[1] / l2 * 12 / scale];
-      } else {
-        v2 = [-v1[1], v1[0]];
-      }
-
-      // Ký hiệu ô vuông góc vuông
-      c.strokeStyle = '#e11d48';
-      c.lineWidth = 1.6 / scale;
-      c.beginPath();
-      c.moveTo(bp[0] + v1[0], bp[1] + v1[1]);
-      c.lineTo(bp[0] + v1[0] + v2[0], bp[1] + v1[1] + v2[1]);
-      c.lineTo(bp[0] + v2[0], bp[1] + v2[1]);
-      c.stroke();
+    // e) Đỉnh / mút
+    else if (snap.type === 'vertex') {
+      c.strokeStyle = '#2563eb';
+      c.lineWidth = 2.2 / scale;
+      c.beginPath(); c.arc(sp[0], sp[1], 8 / scale, 0, 7); c.stroke();
     }
-    // e) Ký hiệu song song //
+    // f) Song song
     else if (snap.type === 'parallel' && snap.refSeg) {
       c.strokeStyle = '#7c3aed';
       c.lineWidth = 1.8 / scale;
       c.setLineDash([4 / scale, 4 / scale]);
-      // Đường dóng kéo dài song song
-      const rs = snap.refSeg;
       c.beginPath();
-      c.moveTo(rs.p1[0], rs.p1[1]); c.lineTo(rs.p2[0], rs.p2[1]);
+      c.moveTo(snap.refSeg.p1[0], snap.refSeg.p1[1]);
+      c.lineTo(snap.refSeg.p2[0], snap.refSeg.p2[1]);
       c.stroke();
       c.setLineDash([]);
     }
 
-    // 4. Floating Badge / Tooltip hiển thị nhãn bắt điểm
+    // 4. Floating Tooltip / Badge hiển thị nhãn gợi ý bắt điểm
     const tx = cur.x + 14 / scale;
     const ty = cur.y + 14 / scale;
     const label = snap.label;
@@ -4850,23 +5068,7 @@ function drawSmartHUD(c, scale) {
     c.fillText(label, tx + 3 / scale, ty - 4 / scale);
   }
 
-  // 5. Thanh thông báo hướng dẫn dưới chân màn hình
-  const hintText = pts.length === 0
-    ? '📐 Bấm hoặc kéo điểm đầu tiên để bắt đầu vẽ'
-    : (pts.length === 1
-      ? 'Kéo đến điểm thứ hai (cạnh 1)'
-      : (pts.length === 2
-        ? 'Kéo điểm thứ ba (bẻ góc) · Nối lại điểm A để khép kín tam giác ABC'
-        : 'Bấm nối lại điểm A để khép kín đa giác (' + pts.length + ' cạnh) · Nhấn Enter để hoàn tất'));
-
   c.restore();
-
-  // Hiển thị toast gợi ý nhẹ góc dưới
-  const hb = $('#smartPolyBar');
-  if (hb) {
-    hb.textContent = hintText;
-    hb.hidden = false;
-  }
 }
 /* ---------- trải hình (khai triển) cho hình không gian dựng sẵn ----------
    Khối đa diện: các mặt nối với nhau thành cây quanh mặt đáy; mỗi mặt quay quanh cạnh gấp với mặt cha một góc
@@ -7131,7 +7333,7 @@ $('#mPdf1').onclick=()=>{closePops();exportPDF(false)};
 $('#mPdfAll').onclick=()=>{closePops();exportPDF(true)};
 $('#mTheme').onclick=()=>{const r=document.documentElement,now=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.dataset.theme=now==='dark'?'light':'dark';try{localStorage.setItem('bvt-theme',r.dataset.theme)}catch(_){}closePops()};
 $('#mClear').onclick=()=>{closePops();$('#cDlg').showModal()};
-const APPVER='2.13.1';
+const APPVER='2.14.0';
 $('#aVer').textContent='Phiên bản '+APPVER+(window.desktop?' cho Windows':' (bản web)');
 $('#mAbout').onclick=()=>{closePops();$('#aDlg').showModal()};$('#aClose').onclick=()=>$('#aDlg').close();
 $('#mDelPage').onclick=()=>{closePops();delPage();toast('Đã xoá trang.',UNDO_ACT)};
