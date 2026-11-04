@@ -3285,10 +3285,12 @@ function drawPiece(c, o, scale) {
     c.arc(o.cx, o.cy, r, a1, a2, false);
     c.closePath();
 
-    c.globalAlpha = 0.55;
-    c.fillStyle = o.fill || '#1565d8';
-    c.fill();
-    c.globalAlpha = 1;
+    if (o.fill) {
+      c.globalAlpha = o.alpha !== undefined ? o.alpha : 0.45;
+      c.fillStyle = typeof o.fill === 'string' ? o.fill : (o.color === 'ink' ? '#1565d8' : o.color);
+      c.fill();
+      c.globalAlpha = 1;
+    }
 
     c.strokeStyle = res(o.color || 'ink');
     c.lineWidth = (o.size || 2);
@@ -3339,10 +3341,12 @@ function drawPiece(c, o, scale) {
       pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
       c.closePath();
 
-      c.globalAlpha = 0.62;
-      c.fillStyle = o.fill || '#1565d8';
-      c.fill();
-      c.globalAlpha = 1;
+      if (o.fill) {
+        c.globalAlpha = o.alpha !== undefined ? o.alpha : 0.35;
+        c.fillStyle = typeof o.fill === 'string' ? o.fill : (o.color === 'ink' ? '#1565d8' : o.color);
+        c.fill();
+        c.globalAlpha = 1;
+      }
 
       c.strokeStyle = res(o.color || 'ink');
       c.lineWidth = (o.size || 2);
@@ -7303,7 +7307,7 @@ const moreB=popBtn(G3,pa('M4 20V10M10 20V4M16 20v-7M22 20H2M17 4c2 0 3 1.5 3 3')
 const SHP=[['rect','Hình chữ nhật (R)',pa('M4 6h16v12H4z')],['ellipse','Elip, đường tròn (O)',svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>')],['tri','Tam giác (I)',pa('M12 4l9 16H3z')],['arrow','Mũi tên (A)',pa('M5 19L19 5M10 5h9v9')],['smartpoly','Vẽ hình bắt điểm động (Efofex)',svg('<path d="M4 19L12 5l8 14H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="4" cy="19" r="2" fill="currentColor"/><circle cx="20" cy="19" r="2" fill="currentColor"/><path d="M10 19v-4h4" fill="none" stroke="currentColor" stroke-width="1.2"/>')],['cutter','✂ Dao cắt hình (vẽ đường cắt ngang qua bất kỳ hình nào)',svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2.2"/>')]];
 const shapeSubBtns={};
 for(const[t,l,ic]of SHP){const b=mkBtn($('#shapeGrid'),ic,l,()=>{setTool(t);closePops()});shapeSubBtns[t]=b;if(!toolBtns[t])toolBtns[t]=b;}
-$('#fillChk').addEventListener('change',e=>{fill=e.target.checked;let ch=false;for(const o of sel)if('x1' in o){o.fill=fill;ch=true}if(ch)commit()});
+$('#fillChk').addEventListener('change',e=>{fill=e.target.checked;let ch=false;for(const o of sel){if('x1' in o||o.type==='piece'||o.pts){o.fill=fill?(color==='ink'?'#1565d8':color):false;if(o.type==='piece')o.alpha=fill?0.35:0;ch=true}}if(ch){baseC=null;commit();requestDraw()}});
 
 $('#custom').addEventListener('input',e=>setColor(e.target.value));
 for(const b of[...$('#bgSeg').children,...$('#bgSeg2').children])b.onclick=()=>{bg=b.dataset.bg;syncUI();save();requestDraw()};
@@ -7355,7 +7359,7 @@ function setTool(t){if(tool==='smartpoly'&&t!=='smartpoly'&&typeof smartResetDra
 function setColor(c){
   /* Đang chọn sẵn đối tượng: chỉ đổi màu chúng. Còn lại: đổi màu cho công cụ đang dùng; nếu đang tẩy hay kéo trang thì chuyển sang bút. */
   let ch=false;
-  if(tool==='select')for(const o of sel)if(o.type!=='graph'&&o.type!=='image'){o.color=c;ch=true}
+  if(tool==='select'){for(const o of sel)if(o.type!=='graph'&&o.type!=='image'){o.color=c;if(o.fill)o.fill=(c==='ink'?'#1565d8':c);ch=true}}
   if(ch){commit();return}
   if(tool==='eraser'||tool==='pan'||tool==='select')setTool('pen');
   if(tool==='hl')hlColor=c;else penColor=c;
@@ -7948,6 +7952,22 @@ function ungroupSel(){
 
 /* thêm nút vào thanh thao tác khi chọn */
 Object.assign(sbBtn,{
+  fillToggle:mkBtn(SB,svg('<path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 000 3l5.5 5.5a2.12 2.12 0 003 0L19 11zM5 2v3M2 5h3"/><path d="M14 6l4 4M21 21a2 2 0 11-4 0c0-1.5 2-3 2-3s2 1.5 2 3z"/>'),'Tô màu nền / Tắt màu nền (trong suốt)',()=>{
+    const L=[...sel].filter(o=>('x1' in o&&o.type!=='line'&&o.type!=='arrow')||o.type==='piece'||(o.pts&&o.pts.length>=3));
+    if(!L.length)return;
+    const anyFilled=L.some(o=>!!o.fill);
+    for(const o of L){
+      if(anyFilled){
+        o.fill=false;
+        if(o.type==='piece')o.alpha=0;
+      }else{
+        o.fill=(color==='ink'?'#1565d8':color);
+        if(o.type==='piece')o.alpha=0.35;
+      }
+    }
+    baseC=null;commit();placeSelBar();requestDraw();
+    toast(anyFilled?'Đã tắt màu nền (trong suốt)':'Đã tô màu nền cho hình');
+  }),
   group:mkBtn(SB,svg('<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M11 7h4a2 2 0 012 2v4M7 11v4a2 2 0 002 2h4" stroke-dasharray="2 2"/>'),'Nhóm các đối tượng lại để tiện di chuyển (Ctrl+G)',groupSel),
   ungroup:mkBtn(SB,svg('<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M14 6l4-3M18 3v3M18 3h-3M10 18l-4 3M6 21v-3M6 21h3"/>'),'Rã nhóm đối tượng (Ctrl+Shift+G)',ungroupSel),
   rot:mkBtn(SB,pa('M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'),'Xoay ảnh 90°',rotSel),
@@ -7966,6 +7986,13 @@ Object.assign(sbBtn,{
 function syncSelExtra(){const L=[...sel],one=L.length===1&&L[0],img=one&&one.type==='image'&&!one.lock,txt=L.length&&L.every(o=>o.type==='text'||o.type==='note'||o.type==='callout');
   const piece=L.some(o=>o.type==='piece');
   const cuttable=one&&(typeof cgCanSlice==='function'?cgCanSlice(one):(one.type==='tri'||one.type==='rect'||one.type==='piece'));
+  const fillable=L.some(o=>('x1' in o&&o.type!=='line'&&o.type!=='arrow')||o.type==='piece'||(o.pts&&o.pts.length>=3));
+  sbBtn.fillToggle.hidden=!fillable;
+  if(fillable){
+    const isFilled=L.some(o=>!!o.fill);
+    sbBtn.fillToggle.classList.toggle('on',isFilled);
+    sbBtn.fillToggle.title=sbBtn.fillToggle.ariaLabel=isFilled?'Tắt màu nền (chuyển sang trong suốt)':'Tô màu nền cho hình';
+  }
   sbBtn.group.hidden=!(L.length>=2);
   sbBtn.ungroup.hidden=!L.some(o=>!!o.groupId);
   sbBtn.rot.hidden=!L.some(o=>o.type==='image'&&!o.lock);sbBtn.crop.hidden=!img;sbBtn.bold.hidden=sbBtn.ital.hidden=!txt;sbBtn.tbg.hidden=!(txt&&L.some(o=>o.type==='text'));
