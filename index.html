@@ -2084,15 +2084,22 @@ cv.addEventListener('pointerdown',e=>{
   if(tool==='smartpoly'){
     const baseP=smartDraw.pts.length?smartDraw.pts[smartDraw.pts.length-1]:null;
     const snap=smartSnap(p,baseP,smartDraw.pts);
-    const target=snap?snap.pt:[p.x,p.y];
+    let target=snap?snap.pt:[p.x,p.y];
     if(smartDraw.pts.length>=2&&((snap&&snap.type==='close')||Math.hypot(p.x-smartDraw.pts[0][0],p.y-smartDraw.pts[0][1])<18/view.s)){
       smartFinishPolygon(true);
       return;
     }
-    if(smartDraw.pts.length===1&&snap&&(snap.type==='bisector_cut'||snap.type==='altitude_cut'||snap.type==='midpoint'||snap.type==='on_seg')){
-      smartDraw.pts.push(target);
-      smartFinishPolygon(false);
-      return;
+    if(smartDraw.pts.length===1){
+      if(snap&&snap.type==='bisector_ray'&&snap.oppInter){
+        target=snap.oppInter.pt;
+        snap.type='bisector_cut';
+        snap.pt=target;
+      }
+      if(snap&&(snap.type==='bisector_cut'||snap.type==='altitude_cut'||snap.type==='midpoint'||snap.type==='on_seg'||snap.type==='vertex')){
+        smartDraw.pts.push(target);
+        smartFinishPolygon(false);
+        return;
+      }
     }
     smartDraw.pts.push(target);
     smartDraw.curP=p;
@@ -2112,20 +2119,15 @@ cv.addEventListener('pointerdown',e=>{
   else if(tool==='stamp')stampAt(p);
   else if(tool==='text'){e.preventDefault();const ot=topHit(p);if(ot&&ot.type==='text'){sel.clear();startText(null,ot)}else startText(p)}
   else if(tool==='select'){
-    if(sel.size===1){
-      const selObj=[...sel][0];
-      if(selObj.type==='piece'){
-        let hx,hy;
-        if(selObj.kind==='sector'){
-          const midA=(selObj.a1+selObj.a2+(selObj.rot||0)*2)/2;
-          hx=selObj.cx+Math.cos(midA)*(selObj.r+14/view.s);
-          hy=selObj.cy+Math.sin(midA)*(selObj.r+14/view.s);
-        }else if(selObj.pts){
-          const b=bbox(selObj);
-          hx=b.x+b.w/2;hy=b.y-18/view.s;
-        }
-        if(hx!==undefined&&Math.hypot(p.x-hx,p.y-hy)<16*touchTol(e)/view.s){
-          drag={type:'rotPiece',o:selObj,startP:p,moved:false};
+    if(sel.size){
+      const hasPieceOrGroup=[...sel].some(o=>o.type==='piece'||o.groupId);
+      if(hasPieceOrGroup){
+        const uBox=unionBox(sel);
+        const hx=uBox.x+uBox.w/2;
+        const hy=uBox.y-18/view.s;
+        if(Math.hypot(p.x-hx,p.y-hy)<16*touchTol(e)/view.s){
+          const cx=uBox.x+uBox.w/2,cy=uBox.y+uBox.h/2;
+          drag={type:'rotPiece',o:[...sel][0],cx,cy,startP:p,moved:false};
           requestDraw();return;
         }
       }
@@ -2149,6 +2151,8 @@ cv.addEventListener('pointerdown',e=>{
         }else if(e.shiftKey){
           sel.delete(o);
           if(o.groupId)for(const other of objs)if(other.groupId===o.groupId)sel.delete(other);
+        }else{
+          if(o.groupId)for(const other of objs)if(other.groupId===o.groupId)sel.add(other);
         }
         drag={type:'move',last:p,moved:false};
       }
@@ -2182,7 +2186,28 @@ cv.addEventListener('pointermove',e=>{
   if(drag.type==='slice'){drag.p2=p;requestDraw();return}
   else if(drag.type==='rotPiece'){
     const o=drag.o;
-    if(o.kind==='sector'){
+    if(sel.size>1||drag.cx!==undefined){
+      const cx=drag.cx!==undefined?drag.cx:(unionBox(sel).x+unionBox(sel).w/2);
+      const cy=drag.cy!==undefined?drag.cy:(unionBox(sel).y+unionBox(sel).h/2);
+      const a0=cgAngle(cx,cy,drag.startP.x,drag.startP.y);
+      const a1=cgAngle(cx,cy,p.x,p.y);
+      const diff=a1-a0;
+      for(const item of sel){
+        if(item.type==='piece'&&item.pts){
+          item.pts=item.pts.map(pt=>cgRotPt(pt[0],pt[1],cx,cy,diff));
+        }else if(item.type==='piece'&&item.kind==='sector'){
+          const [nx,ny]=cgRotPt(item.cx,item.cy,cx,cy,diff);
+          item.cx=nx;item.cy=ny;item.rot=(item.rot||0)+diff;
+        }else if('x1' in item){
+          const [rx1,ry1]=cgRotPt(item.x1,item.y1,cx,cy,diff);
+          const [rx2,ry2]=cgRotPt(item.x2,item.y2,cx,cy,diff);
+          item.x1=rx1;item.y1=ry1;item.x2=rx2;item.y2=ry2;
+        }else if(item.type==='stroke'&&item.pts){
+          item.pts=item.pts.map(pt=>{const [rx,ry]=cgRotPt(pt[0],pt[1],cx,cy,diff);return [rx,ry,pt[2]||.5]});
+        }
+      }
+      drag.startP=p;
+    }else if(o.kind==='sector'){
       const midA=(o.a1+o.a2)/2;
       const curA=cgAngle(o.cx,o.cy,p.x,p.y);
       o.rot=curA-midA;
@@ -2238,17 +2263,22 @@ function endPointer(e){
   const d=drag;drag=null;
   if(d.type==='smartpoly'){
     const p=toWorld(e);
-    if(smartDraw.moved&&smartDraw.downP&&Math.hypot(p.x-smartDraw.downP.x,p.y-smartDraw.downP.y)>14/view.s){
+    if(smartDraw.moved&&smartDraw.downP&&Math.hypot(p.x-smartDraw.downP.x,p.y-smartDraw.downP.y)>10/view.s){
       const snap=smartDraw.snap;
-      const target=snap?snap.pt:[p.x,p.y];
+      let target=snap?snap.pt:[p.x,p.y];
       if(smartDraw.pts.length>=3&&snap&&snap.type==='close'){
         smartFinishPolygon(true);
         return;
       }
+      if(snap&&snap.type==='bisector_ray'&&snap.oppInter){
+        target=snap.oppInter.pt;
+        snap.type='bisector_cut';
+        snap.pt=target;
+      }
       const lastP=smartDraw.pts[smartDraw.pts.length-1];
-      if(Math.hypot(target[0]-lastP[0],target[1]-lastP[1])>10/view.s){
+      if(Math.hypot(target[0]-lastP[0],target[1]-lastP[1])>8/view.s){
         smartDraw.pts.push(target);
-        if(smartDraw.pts.length===2&&snap&&(snap.type==='bisector_cut'||snap.type==='altitude_cut'||snap.type==='midpoint'||snap.type==='on_seg')){
+        if(smartDraw.pts.length===2){
           smartFinishPolygon(false);
           return;
         }
@@ -3361,32 +3391,35 @@ function drawPiece(c, o, scale) {
         c.fillText(o.label, cx, cy);
       }
 
-      // Nếu đang chọn: vẽ chấm xoay trên đầu
+      // Nếu đang chọn: vẽ chấm xoay trên đầu (1 chấm xoay duy nhất cho cả nhóm)
       if (sel.has(o)) {
-        const b = bbox(o);
-        const hx = b.x + b.w / 2;
-        const hy = b.y - 18 / scale;
-        c.strokeStyle = theme.accent;
-        c.lineWidth = 1.6 / scale;
-        c.beginPath();
-        c.moveTo(hx, b.y);
-        c.lineTo(hx, hy);
-        c.stroke();
+        const isFirst = [...sel][0] === o;
+        if (sel.size === 1 || isFirst) {
+          const b = sel.size > 1 ? unionBox(sel) : bbox(o);
+          const hx = b.x + b.w / 2;
+          const hy = b.y - 18 / scale;
+          c.strokeStyle = theme.accent;
+          c.lineWidth = 1.6 / scale;
+          c.beginPath();
+          c.moveTo(hx, b.y);
+          c.lineTo(hx, hy);
+          c.stroke();
 
-        const hr = 9 / scale;
-        c.fillStyle = theme.paper;
-        c.beginPath();
-        c.arc(hx, hy, hr, 0, 7);
-        c.fill();
-        c.strokeStyle = theme.accent;
-        c.lineWidth = 2 / scale;
-        c.stroke();
+          const hr = 9 / scale;
+          c.fillStyle = theme.paper;
+          c.beginPath();
+          c.arc(hx, hy, hr, 0, 7);
+          c.fill();
+          c.strokeStyle = theme.accent;
+          c.lineWidth = 2 / scale;
+          c.stroke();
 
-        c.fillStyle = theme.accent;
-        c.font = 'bold ' + (11 / scale) + 'px sans-serif';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText('↻', hx, hy + 0.5 / scale);
+          c.fillStyle = theme.accent;
+          c.font = 'bold ' + (11 / scale) + 'px sans-serif';
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+          c.fillText('↻', hx, hy + 0.5 / scale);
+        }
       }
     }
   } else if (o.kind === 'baseline') {
@@ -3687,6 +3720,36 @@ function cgRotatePiece(o, deg = 45) {
   commit();
 }
 
+/* Xoay toàn bộ các đối tượng đang chọn quanh tâm chung */
+function rotateSel(deg = 45) {
+  if (!sel.size) return;
+  const rad = deg * Math.PI / 180;
+  const uBox = unionBox(sel);
+  const cx = uBox.x + uBox.w / 2, cy = uBox.y + uBox.h / 2;
+  for (const o of sel) {
+    if (o.type === 'piece' && o.pts) {
+      o.pts = o.pts.map(p => cgRotPt(p[0], p[1], cx, cy, rad));
+    } else if (o.type === 'piece' && o.kind === 'sector') {
+      const [nx, ny] = cgRotPt(o.cx, o.cy, cx, cy, rad);
+      o.cx = nx; o.cy = ny;
+      o.rot = (o.rot || 0) + rad;
+    } else if ('x1' in o) {
+      const [rx1, ry1] = cgRotPt(o.x1, o.y1, cx, cy, rad);
+      const [rx2, ry2] = cgRotPt(o.x2, o.y2, cx, cy, rad);
+      o.x1 = rx1; o.y1 = ry1; o.x2 = rx2; o.y2 = ry2;
+    } else if (o.type === 'stroke' && o.pts) {
+      o.pts = o.pts.map(p => {
+        const [rx, ry] = cgRotPt(p[0], p[1], cx, cy, rad);
+        return [rx, ry, p[2] || 0.5];
+      });
+    }
+  }
+  for (const o of sel) if (o.type === 'piece') cgSnapPiece(o);
+  commit();
+  placeSelBar();
+  requestDraw();
+}
+
 /* Lật mảnh ghép đối xứng ngang/dọc */
 function cgFlipPiece(o, axis = 'h') {
   if (o.pts) {
@@ -3700,6 +3763,37 @@ function cgFlipPiece(o, axis = 'h') {
     o.pts.reverse();
     commit();
   }
+}
+
+/* Lật toàn bộ các đối tượng đang chọn đối xứng quanh tâm chung */
+function flipSel(axis = 'h') {
+  if (!sel.size) return;
+  const uBox = unionBox(sel);
+  const cx = uBox.x + uBox.w / 2, cy = uBox.y + uBox.h / 2;
+  for (const o of sel) {
+    if (o.type === 'piece' && o.pts) {
+      o.pts = o.pts.map(p => {
+        const x = axis === 'h' ? cx - (p[0] - cx) : p[0];
+        const y = axis === 'v' ? cy - (p[1] - cy) : p[1];
+        return [x, y];
+      });
+      o.pts.reverse();
+    } else if ('x1' in o) {
+      o.x1 = axis === 'h' ? cx - (o.x1 - cx) : o.x1;
+      o.x2 = axis === 'h' ? cx - (o.x2 - cx) : o.x2;
+      o.y1 = axis === 'v' ? cy - (o.y1 - cy) : o.y1;
+      o.y2 = axis === 'v' ? cy - (o.y2 - cy) : o.y2;
+    } else if (o.type === 'stroke' && o.pts) {
+      o.pts = o.pts.map(p => {
+        const x = axis === 'h' ? cx - (p[0] - cx) : p[0];
+        const y = axis === 'v' ? cy - (p[1] - cy) : p[1];
+        return [x, y, p[2] || 0.5];
+      });
+    }
+  }
+  commit();
+  placeSelBar();
+  requestDraw();
 }
 
 /* ---------- CÁC MẪU DỰNG SẴN CHUẨN SGK (PRESETS) ---------- */
@@ -4613,18 +4707,29 @@ function smartSnap(rawP, baseP, currentPts) {
           const bisAng = ray1.ang + diffAng / 2;
           const diffWithCursor = Math.abs(smartAngDiff(curAng, bisAng));
 
-          if (diffWithCursor < angTol) {
-            // Tìm cạnh đối diện nối ray1.otherP và ray2.otherP
-            const oppInter = smartRaySegInter(baseP, bisAng, ray1.otherP, ray2.otherP);
+          if (diffWithCursor < angTol * 1.5) {
+            // Tìm cạnh đối diện cắt tia phân giác
+            let oppInter = smartRaySegInter(baseP, bisAng, ray1.otherP, ray2.otherP);
+            if (!oppInter) {
+              // Tìm trên mọi cạnh khác không chứa baseP
+              for (const s of segs) {
+                if (Math.hypot(s.p1[0] - baseP[0], s.p1[1] - baseP[1]) < 4 / view.s) continue;
+                if (Math.hypot(s.p2[0] - baseP[0], s.p2[1] - baseP[1]) < 4 / view.s) continue;
+                const inter = smartRaySegInter(baseP, bisAng, s.p1, s.p2);
+                if (inter && (!oppInter || inter.t < oppInter.t)) oppInter = inter;
+              }
+            }
 
-            // Nếu con trỏ đưa gần cạnh đối diện: snap chặt vào giao điểm phân giác với cạnh đối
-            if (oppInter && Math.abs(len - oppInter.t) < 22 / view.s) {
+            // Nếu tồn tại giao điểm cạnh đối diện:
+            // Tự động snap chặt vào giao điểm cạnh đối nếu kéo quá 35% hoặc gần cạnh đối hoặc vượt nhẹ qua cạnh đối
+            if (oppInter && (len >= oppInter.t * 0.35 || Math.abs(len - oppInter.t) < 55 / view.s || (len >= oppInter.t && len <= oppInter.t * 1.4))) {
               return {
                 type: 'bisector_cut',
                 pt: oppInter.pt,
                 basePt: baseP,
                 ray1, ray2,
-                label: 'Giao điểm phân giác trên cạnh đối',
+                oppInter,
+                label: 'Tia phân giác (cắt cạnh đối)',
                 color: '#0284c7'
               };
             }
@@ -4632,10 +4737,11 @@ function smartSnap(rawP, baseP, currentPts) {
             // Còn lại: snap theo tia phân giác
             return {
               type: 'bisector_ray',
-              pt: [baseP[0] + len * Math.cos(bisAng), baseP[1] + len * Math.sin(bisAng)],
+              pt: [+(baseP[0] + len * Math.cos(bisAng)).toFixed(2), +(baseP[1] + len * Math.sin(bisAng)).toFixed(2)],
               basePt: baseP,
               ray1, ray2,
-              label: 'Tia phân giác',
+              oppInter,
+              label: oppInter ? 'Tia phân giác (hướng tới cạnh đối)' : 'Tia phân giác',
               color: '#0284c7'
             };
           }
@@ -4652,28 +4758,51 @@ function smartSnap(rawP, baseP, currentPts) {
         const dx = C[0] - B[0], dy = C[1] - B[1], l2 = dx * dx + dy * dy;
         if (l2 > 1) {
           const s = ((baseP[0] - B[0]) * dx + (baseP[1] - B[1]) * dy) / l2;
-          const H = [B[0] + s * dx, B[1] + s * dy];
+          const H = [+(B[0] + s * dx).toFixed(2), +(B[1] + s * dy).toFixed(2)];
           const altAng = Math.atan2(H[1] - baseP[1], H[0] - baseP[0]);
           const altLen = Math.hypot(H[0] - baseP[0], H[1] - baseP[1]);
 
-          if (Math.abs(smartAngDiff(curAng, altAng)) < angTol) {
-            if (Math.abs(len - altLen) < 22 / view.s && s >= 0 && s <= 1) {
+          if (Math.abs(smartAngDiff(curAng, altAng)) < angTol * 1.4) {
+            if (s >= -0.05 && s <= 1.05 && (len >= altLen * 0.35 || Math.abs(len - altLen) < 55 / view.s || (len >= altLen && len <= altLen * 1.4))) {
               return {
                 type: 'altitude_cut',
                 pt: H,
                 basePt: baseP,
                 foot: H,
                 oppSeg: { p1: B, p2: C },
-                label: 'Chân đường cao (⟂ cạnh đối)',
+                label: 'Đường cao (⟂ cạnh đối)',
                 color: '#e11d48'
               };
             }
             return {
               type: 'perp',
-              pt: [baseP[0] + len * Math.cos(altAng), baseP[1] + len * Math.sin(altAng)],
+              pt: [+(baseP[0] + len * Math.cos(altAng)).toFixed(2), +(baseP[1] + len * Math.sin(altAng)).toFixed(2)],
               basePt: baseP,
               label: 'Đường cao (⟂ cạnh đối)',
               color: '#e11d48'
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 5b. ĐƯỜNG TRUNG TUYẾN (Nối từ đỉnh baseP tới trung điểm cạnh đối diện)
+  if (incidentSegs.length >= 2) {
+    for (let i = 0; i < incidentSegs.length; i++) {
+      for (let j = i + 1; j < incidentSegs.length; j++) {
+        const B = incidentSegs[i].otherP, C = incidentSegs[j].otherP;
+        const M = [+((B[0] + C[0]) / 2).toFixed(2), +((B[1] + C[1]) / 2).toFixed(2)];
+        const medAng = Math.atan2(M[1] - baseP[1], M[0] - baseP[0]);
+        const medLen = Math.hypot(M[0] - baseP[0], M[1] - baseP[1]);
+        if (Math.abs(smartAngDiff(curAng, medAng)) < angTol * 1.4) {
+          if (len >= medLen * 0.35 || Math.abs(len - medLen) < 55 / view.s || (len >= medLen && len <= medLen * 1.4)) {
+            return {
+              type: 'midpoint',
+              pt: M,
+              basePt: baseP,
+              label: 'Đường trung tuyến (trung điểm cạnh đối)',
+              color: '#f59e0b'
             };
           }
         }
@@ -4796,6 +4925,78 @@ function smartSnap(rawP, baseP, currentPts) {
   return null;
 }
 
+/* Tìm hình phẳng mẹ mà tia/đoạn thẳng vừa vẽ gắn vào để tự động nhóm (Group) chung */
+function findHostShapeForSmartDraw(pts) {
+  if (!pts || pts.length < 2) return null;
+  const p1 = { x: pts[0][0], y: pts[0][1] };
+  const p2 = { x: pts[pts.length - 1][0], y: pts[pts.length - 1][1] };
+  const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  const tol = 16 / view.s;
+
+  for (let i = objs.length - 1; i >= 0; i--) {
+    const o = objs[i];
+    if (o.hidden || o.lock) continue;
+
+    // 1. Nếu là piece (tam giác, đa giác vẽ bằng smartpoly hoặc mảnh ghép)
+    if (o.type === 'piece' && o.pts && o.pts.length >= 3) {
+      const touchVertex = o.pts.some(q => Math.hypot(q[0] - p1.x, q[1] - p1.y) < tol || Math.hypot(q[0] - p2.x, q[1] - p2.y) < tol);
+      let touchEdge = false;
+      for (let j = 0; j < o.pts.length; j++) {
+        const next = o.pts[(j + 1) % o.pts.length];
+        if (distSeg(p1.x, p1.y, o.pts[j][0], o.pts[j][1], next[0], next[1]) < tol ||
+            distSeg(p2.x, p2.y, o.pts[j][0], o.pts[j][1], next[0], next[1]) < tol) {
+          touchEdge = true;
+          break;
+        }
+      }
+      const inside = cgPieceHit(o, mid, tol) || cgPieceHit(o, p1, tol) || cgPieceHit(o, p2, tol);
+      if (touchVertex || touchEdge || inside) return o;
+    }
+
+    // 2. Nếu là tam giác đứng (tri)
+    if (o.type === 'tri') {
+      const t = triPts(o);
+      const touchVertex = t.some(q => Math.hypot(q[0] - p1.x, q[1] - p1.y) < tol || Math.hypot(q[0] - p2.x, q[1] - p2.y) < tol);
+      let touchEdge = false;
+      for (let j = 0; j < 3; j++) {
+        const next = t[(j + 1) % 3];
+        if (distSeg(p1.x, p1.y, t[j][0], t[j][1], next[0], next[1]) < tol ||
+            distSeg(p2.x, p2.y, t[j][0], t[j][1], next[0], next[1]) < tol) {
+          touchEdge = true;
+          break;
+        }
+      }
+      if (touchVertex || touchEdge || hit(o, mid, tol)) return o;
+    }
+
+    // 3. Nếu là chữ nhật (rect)
+    if (o.type === 'rect') {
+      const b = bbox(o);
+      const corners = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+      const touchVertex = corners.some(q => Math.hypot(q[0] - p1.x, q[1] - p1.y) < tol || Math.hypot(q[0] - p2.x, q[1] - p2.y) < tol);
+      let touchEdge = false;
+      for (let j = 0; j < 4; j++) {
+        const next = corners[(j + 1) % 4];
+        if (distSeg(p1.x, p1.y, corners[j][0], corners[j][1], next[0], next[1]) < tol ||
+            distSeg(p2.x, p2.y, corners[j][0], corners[j][1], next[0], next[1]) < tol) {
+          touchEdge = true;
+          break;
+        }
+      }
+      if (touchVertex || touchEdge || hit(o, mid, tol)) return o;
+    }
+
+    // 4. Nếu là đoạn thẳng đã có sẵn và có groupId
+    if (o.type === 'line' && o.groupId) {
+      if (Math.hypot(o.x1 - p1.x, o.y1 - p1.y) < tol || Math.hypot(o.x2 - p1.x, o.y2 - p1.y) < tol ||
+          Math.hypot(o.x1 - p2.x, o.y1 - p2.y) < tol || Math.hypot(o.x2 - p2.x, o.y2 - p2.y) < tol) {
+        return o;
+      }
+    }
+  }
+  return null;
+}
+
 /* Hoàn thành vẽ đa giác khép kín hoặc đường gấp khúc */
 function smartFinishPolygon(closed = true) {
   if (smartDraw.pts.length < 2) {
@@ -4827,11 +5028,20 @@ function smartFinishPolygon(closed = true) {
     const shapeName = pts.length === 3 ? 'tam giác' : ('đa giác ' + pts.length + ' cạnh');
     toast('Đã vẽ ' + shapeName + ' khép kín!');
   }
-  // Đoạn thẳng đơn hoặc chuỗi đoạn thẳng (đường gấp khúc / phân giác / đường cao)
+  // Đoạn thẳng đơn hoặc chuỗi đoạn thẳng (đường gấp khúc / phân giác / đường cao / trung tuyến)
   else {
     const snap = smartDraw.snap;
+    const hostShape = findHostShapeForSmartDraw(pts);
     let gid = null;
-    if (snap && (snap.type === 'bisector_cut' || snap.type === 'bisector_ray' || snap.type === 'altitude_cut' || snap.type === 'perp')) {
+
+    if (hostShape) {
+      if (hostShape.groupId) {
+        gid = hostShape.groupId;
+      } else {
+        gid = 'grp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        hostShape.groupId = gid;
+      }
+    } else if (snap && (snap.type === 'bisector_cut' || snap.type === 'bisector_ray' || snap.type === 'altitude_cut' || snap.type === 'perp')) {
       gid = 'grp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
     }
 
@@ -4863,7 +5073,20 @@ function smartFinishPolygon(closed = true) {
     }
 
     commit();
-    toast('Đã vẽ đoạn thẳng hoàn tất!');
+
+    // Tự động chọn toàn bộ nhóm (hình mẹ + tia + các vòng cung/ký hiệu) để người dùng kéo là đi liền cả cụm!
+    sel.clear();
+    if (gid) {
+      for (const other of objs) {
+        if (other.groupId === gid) sel.add(other);
+      }
+    } else {
+      for (const l of addedLines) sel.add(l);
+    }
+    placeSelBar();
+
+    const toastMsg = hostShape ? 'Đã vẽ tia và tự động liên kết vào hình!' : 'Đã vẽ đoạn thẳng hoàn tất!';
+    toast(toastMsg);
   }
 
   smartResetDraw();
@@ -7979,12 +8202,12 @@ Object.assign(sbBtn,{
     const o=[...sel][0];if(o){const pieces=cgCutAngles(o);if(pieces.length){objs.push(...pieces);sel.clear();pieces.forEach(p=>sel.add(p));commit();toast('Đã cắt '+pieces.length+' góc thành các mảnh quạt!')}}
   }),
   slice:mkBtn(SB,svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2"/>'),'Cắt hình bằng đường thẳng (kéo vạch cắt qua hình)',cgStartSlice),
-  rot45:mkBtn(SB,svg('<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.6L21 8M21 3v5h-5"/>'),'Xoay mảnh ghép 45°',()=>{for(const o of sel)if(o.type==='piece')cgRotatePiece(o,45)}),
-  rot90:mkBtn(SB,svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>'),'Xoay mảnh ghép 90°',()=>{for(const o of sel)if(o.type==='piece')cgRotatePiece(o,90)}),
-  flip:mkBtn(SB,svg('<path d="M12 2v20M4 18l6-12v12zM20 18l-6-12v12z" stroke-dasharray="2 2"/>'),'Lật ngang mảnh ghép',()=>{for(const o of sel)if(o.type==='piece')cgFlipPiece(o,'h')}),
-  flipV:mkBtn(SB,svg('<path d="M2 12h20M18 4l-12 6h12zM18 20l-12-6h12z" stroke-dasharray="2 2"/>'),'Lật dọc mảnh ghép',()=>{for(const o of sel)if(o.type==='piece')cgFlipPiece(o,'v')})});
+  rot45:mkBtn(SB,svg('<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.6L21 8M21 3v5h-5"/>'),'Xoay 45°',()=>rotateSel(45)),
+  rot90:mkBtn(SB,svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>'),'Xoay 90°',()=>rotateSel(90)),
+  flip:mkBtn(SB,svg('<path d="M12 2v20M4 18l6-12v12zM20 18l-6-12v12z" stroke-dasharray="2 2"/>'),'Lật ngang',()=>flipSel('h')),
+  flipV:mkBtn(SB,svg('<path d="M2 12h20M18 4l-12 6h12zM18 20l-12-6h12z" stroke-dasharray="2 2"/>'),'Lật dọc',()=>flipSel('v'))});
 function syncSelExtra(){const L=[...sel],one=L.length===1&&L[0],img=one&&one.type==='image'&&!one.lock,txt=L.length&&L.every(o=>o.type==='text'||o.type==='note'||o.type==='callout');
-  const piece=L.some(o=>o.type==='piece');
+  const piece=L.some(o=>o.type==='piece'||o.groupId);
   const cuttable=one&&(typeof cgCanSlice==='function'?cgCanSlice(one):(one.type==='tri'||one.type==='rect'||one.type==='piece'));
   const fillable=L.some(o=>('x1' in o&&o.type!=='line'&&o.type!=='arrow')||o.type==='piece'||(o.pts&&o.pts.length>=3));
   sbBtn.fillToggle.hidden=!fillable;
