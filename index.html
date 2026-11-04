@@ -435,6 +435,18 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
 .pop .tb.albtn svg{width:24px;height:24px;flex:none}
 .pop .tb.albtn:disabled{opacity:.35;pointer-events:none}
 #popAlign .row{display:flex;gap:12px;margin-top:8px;font-size:13px}
+
+/* Cắt ghép hình phẳng */
+dialog.wide{width:min(780px,calc(100% - 32px))}
+.cutCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-top:10px;max-height:55vh;overflow-y:auto;padding-right:4px}
+.cutCard{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.cutCard:hover{border-color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.cutThumb{font-size:24px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:var(--hover);border-radius:8px;flex:none;font-weight:600}
+.cutInfo{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.cutInfo b{font-size:13.5px;color:var(--ink);line-height:1.3}
+.cutInfo span{font-size:12px;color:var(--muted);line-height:1.4}
+.cutCard .btn{flex:none;white-space:nowrap;padding:6px 12px;font-size:13px}
+
 </style>
 </head>
 <body>
@@ -650,6 +662,7 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
     <button type="button" class="item" id="mxChem">⚗️ Công thức, phương trình hoá học</button>
     <button type="button" class="item" id="mxTable">▦ Bảng (kẻ bảng, dán từ Excel, Word)</button>
     <button type="button" class="item" id="mxCallout">↖ Mũi tên chú thích (chỉ vào hình, ghi nhãn)</button>
+    <button type="button" class="item" id="mxCutPaste">✂️ Cắt, ghép hình phẳng (3 góc tam giác, diện tích, Tangram…)</button>
     <button type="button" class="item" id="mxLib">📚 Thư viện hình theo môn (như ToanViet Studio)</button>
     <button type="button" class="item" id="mxRegion">📈 Miền nghiệm của hệ bất phương trình</button>
     <button type="button" class="item" id="mxNumline">↔ Trục số, biểu đồ Ven</button>
@@ -669,6 +682,7 @@ textarea.cin{resize:vertical;font:14px ui-monospace,Consolas,monospace}
   <div class="pop" id="popShape" hidden>
     <div class="shapes" id="shapeGrid"></div>
     <label><input type="checkbox" id="fillChk"> Tô nền cho hình</label>
+    <button type="button" class="btn" id="shapeCutPaste" style="grid-column:1/-1;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:6px">✂️ Cắt ghép hình phẳng…</button>
   </div>
   <div class="pop" id="popInst" hidden>
     <div class="shapes" id="instGrid"></div>
@@ -998,6 +1012,106 @@ print(s)</textarea><button type="button" class="btn" id="flGen">Sinh sơ đồ</
     <div class="row end"><button type="button" class="btn plain" id="daNo">Huỷ</button><button type="button" class="btn danger" id="daYes">Xoá tất cả</button></div>
   </div></dialog>
 
+  <dialog id="cutDlg" class="wide"><form class="dlg" method="dialog" id="cutForm">
+    <div class="fhead">
+      <h2>✂️ Cắt, ghép hình phẳng (Toán SGK)</h2>
+      <div class="seg" id="cutTabs">
+        <button type="button" data-t="angles" class="on">📐 Cắt ghép góc</button>
+        <button type="button" data-t="area">🟩 Khám phá diện tích</button>
+        <button type="button" data-t="tangram">🧩 Tangram (7 miếng)</button>
+      </div>
+    </div>
+
+    <!-- Tab 1: Tổng các góc -->
+    <div class="cutPane" data-p="angles">
+      <p>Cắt các góc của đa giác thành các mảnh quạt riêng biệt, kéo các đỉnh góc chụm vào đường thẳng mốc để kiểm chứng trực quan tổng số đo các góc.</p>
+      <div class="cutCards">
+        <div class="cutCard">
+          <div class="cutThumb">📐 180°</div>
+          <div class="cutInfo">
+            <b>Tổng ba góc trong tam giác = 180°</b>
+            <span>Tam giác 3 góc 3 màu (A, B, C) kèm đường thẳng xy có mốc O. Kéo 3 đỉnh về O, các góc tự hút dính tạo thành góc bẹt 180°.</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutTriAngle">Chèn bài học</button>
+        </div>
+        <div class="cutCard">
+          <div class="cutThumb">⭕ 360°</div>
+          <div class="cutInfo">
+            <b>Tổng bốn góc trong tứ giác = 360°</b>
+            <span>Tứ giác lồi 4 góc 4 màu. Kéo 4 góc chụm đỉnh về điểm O để thấy 4 góc ghép kín khít thành 360° (vòng tròn).</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutQuadAngle">Chèn bài học</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Khám phá diện tích -->
+    <div class="cutPane" data-p="area" hidden>
+      <p>Cắt dời, lật và xoay các mảnh ghép để chuyển đổi các hình phẳng về hình chữ nhật hoặc hình bình hành theo phương pháp bảo toàn diện tích SGK.</p>
+      <div class="cutCards">
+        <div class="cutCard">
+          <div class="cutThumb">▱ ➔ ▭</div>
+          <div class="cutInfo">
+            <b>Hình bình hành ➔ Hình chữ nhật</b>
+            <span>Cắt tam giác vuông đường cao bên trái, trượt sang bên phải ghép thành hình chữ nhật: S = a × h.</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutPgram">Chèn mẫu</button>
+        </div>
+        <div class="cutCard">
+          <div class="cutThumb">🔺 ➔ ▱</div>
+          <div class="cutInfo">
+            <b>Tam giác ➔ Hình bình hành</b>
+            <span>Cắt theo đường trung bình, xoay nửa trên 180° ghép xuống dưới: S = (a × h) / 2.</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutTriArea">Chèn mẫu</button>
+        </div>
+        <div class="cutCard">
+          <div class="cutThumb">梯 ➔ ▱</div>
+          <div class="cutInfo">
+            <b>Hình thang ➔ Hình bình hành</b>
+            <span>Ghép 2 hình thang bằng nhau (xoay 180°) thành hình bình hành đáy (a + b): S = (a + b) × h / 2.</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutTrap">Chèn mẫu</button>
+        </div>
+        <div class="cutCard">
+          <div class="cutThumb">🔴 ➔ ▭</div>
+          <div class="cutInfo">
+            <b>Hình tròn ➔ Hình chữ nhật (16 nan quạt)</b>
+            <span>Cắt hình tròn thành 16 nan quạt xen kẽ 2 màu, ghép so le thành hình gần chữ nhật πr × r.</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutCircle">Chèn mẫu</button>
+        </div>
+        <div class="cutCard">
+          <div class="cutThumb">📐 c²</div>
+          <div class="cutInfo">
+            <b>Định lý Pythagore (Ghép hình)</b>
+            <span>Ghép 4 tam giác vuông bằng nhau và 1 hình vuông nhỏ vào khung hình vuông cạnh c² = a² + b².</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutPythagoras">Chèn câu đố</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Tangram -->
+    <div class="cutPane" data-p="tangram" hidden>
+      <p>Trò chơi 7 miếng ghép thông minh (Tangram): rèn luyện tư duy không gian, ghép các miếng theo khung bóng hình mẫu.</p>
+      <div class="cutCards">
+        <div class="cutCard">
+          <div class="cutThumb">🐱 Tangram</div>
+          <div class="cutInfo">
+            <b>7 Miếng ghép Tangram + Khung con mèo</b>
+            <span>Gồm 2 tam giác lớn, 1 tam giác vừa, 2 tam giác nhỏ, 1 hình vuông, 1 hình bình hành và bóng hình con mèo. Có hỗ trợ tự động hút dính (snap) các mép đỉnh.</span>
+          </div>
+          <button type="button" class="btn primary" id="btnCutTangram">Bắt đầu ghép</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row end" style="margin-top:10px">
+      <button type="button" class="btn plain" id="cutClose">Đóng</button>
+    </div>
+  </form></dialog>
+
   <dialog id="geoDlg"><form class="dlg" method="dialog" id="geoForm">
     <div class="fhead"><h2>Dựng hình động</h2><label class="chk"><input type="checkbox" id="geoLen"> Hiện độ dài mọi đoạn thẳng (đơn vị: ô li)</label></div>
     <div class="chips" id="geoTools" role="toolbar" aria-label="Công cụ dựng hình"></div>
@@ -1243,6 +1357,7 @@ function addImage(file){
 function textSize(o){mctx.font=textFont(o);const ls=o.text.split('\n');return{w:Math.max(...ls.map(l=>mctx.measureText(l).width),10),h:ls.length*o.fs*1.3}}
 function bbox(o){
   if(o.type==='callout')return calloutBBox(o);
+  if(o.type==='piece')return cgPieceBBox(o);
   if(o.type==='image'&&o.rot%180){const cx=o.x+o.w/2,cy=o.y+o.h/2;return{x:cx-o.h/2,y:cy-o.w/2,w:o.h,h:o.w}}
   if(o.type==='stroke'){let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const q of o.pts){a=Math.min(a,q[0]);b=Math.min(b,q[1]);c=Math.max(c,q[0]);d=Math.max(d,q[1])}
     const r=(o.hl?o.size*4:o.size)/2;return{x:a-r,y:b-r,w:c-a+2*r,h:d-b+2*r}}
@@ -1262,6 +1377,7 @@ function hit(o,p,tol){
     if(q.length===1)return Math.hypot(p.x-q[0][0],p.y-q[0][1])<=r;
     for(let i=1;i<q.length;i++)if(distSeg(p.x,p.y,q[i-1][0],q[i-1][1],q[i][0],q[i][1])<=r)return true;return false}
   const r=tol+(o.size||0)/2;
+  if(o.type==='piece')return cgPieceHit(o,p,tol);
   if(o.type==='line'||o.type==='arrow')return distSeg(p.x,p.y,o.x1,o.y1,o.x2,o.y2)<=r;
   if(o.type==='rect'){if(o.fill)return true;return Math.min(Math.abs(p.x-b.x),Math.abs(p.x-b.x-b.w),Math.abs(p.y-b.y),Math.abs(p.y-b.y-b.h))<=r}
   if(o.type==='ellipse'){const rx=b.w/2||1,ry=b.h/2||1,d=Math.hypot((p.x-b.x-rx)/rx,(p.y-b.y-ry)/ry);return o.fill?d<=1:Math.abs(d-1)*Math.min(rx,ry)<=r}
@@ -1272,12 +1388,17 @@ function hit(o,p,tol){
 function topHit(p){const tol=6/view.s;for(let i=objs.length-1;i>=0;i--)if(!objs[i].lock&&hit(objs[i],p,tol))return objs[i];return null}
 function moveObj(o,dx,dy){
   if(o.type==='stroke')for(const q of o.pts){q[0]+=dx;q[1]+=dy}
+  else if(o.type==='piece')cgMovePiece(o,dx,dy);
   else if('x1' in o){o.x1+=dx;o.x2+=dx;o.y1+=dy;o.y2+=dy}
   else{o.x+=dx;o.y+=dy}
 }
 function scaleObj(o,ox,oy,sx,sy){
   const fx=v=>ox+(v-ox)*sx,fy=v=>oy+(v-oy)*sy;
   if(o.type==='stroke')for(const q of o.pts){q[0]=fx(q[0]);q[1]=fy(q[1])}
+  else if(o.type==='piece'){
+    if(o.kind==='sector'){o.cx=fx(o.cx);o.cy=fy(o.cy);o.r*=Math.min(sx,sy)}
+    else if(o.pts){for(const q of o.pts){q[0]=fx(q[0]);q[1]=fy(q[1])}}
+  }
   else if('x1' in o){o.x1=fx(o.x1);o.x2=fx(o.x2);o.y1=fy(o.y1);o.y2=fy(o.y2);if(o.type==='callout')o.fs*=Math.min(sx,sy)}
   else{o.x=fx(o.x);o.y=fy(o.y);if('w' in o){o.w*=sx;o.h*=sy}else o.fs*=sx}
 }
@@ -1460,6 +1581,7 @@ function drawObj(c,o,scale){
   else if(o.type==='note')drawNote(c,o);
   else if(o.type==='clip')drawClip(c,o);
   else if(o.type==='geo')drawGeo(c,o);
+  else if(o.type==='piece')drawPiece(c,o,scale);
   c.restore();
 }
 /* giấy kẻ cho các môn: ô li vở tiểu học (ô lớn 4 dòng li), 4 dòng tập viết tiếng Anh, khuông nhạc 5 dòng */
@@ -1788,6 +1910,13 @@ function draw(){
   drawInst(ctx);
   /* vòng tẩy (nhìn thấy cả khi lau bằng tay, không có con trỏ) */
   if(drag&&drag.type==='erase'&&drag.mode==='part'&&drag.at){ctx.beginPath();ctx.arc(drag.at.x,drag.at.y,drag.r,0,7);ctx.fillStyle='rgba(128,128,128,.14)';ctx.fill();ctx.strokeStyle=theme.muted;ctx.lineWidth=1.2/view.s;ctx.stroke()}
+  /* đường cắt kéo dao (slicer) */
+  if(drag&&drag.type==='slice'){
+    ctx.save();ctx.strokeStyle='#e02020';ctx.lineWidth=2/view.s;ctx.setLineDash([8/view.s,5/view.s]);
+    ctx.beginPath();ctx.moveTo(drag.p1.x,drag.p1.y);ctx.lineTo(drag.p2.x,drag.p2.y);ctx.stroke();
+    ctx.setLineDash([]);ctx.fillStyle='#e02020';ctx.font='bold '+(15/view.s)+'px '+FONT;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('✂️ Cắt',(drag.p1.x+drag.p2.x)/2,(drag.p1.y+drag.p2.y)/2-14/view.s);ctx.restore();
+  }
   if(sel.size){
     ctx.strokeStyle=theme.accent;ctx.lineWidth=1.2/view.s;ctx.setLineDash([5/view.s,4/view.s]);
     const m=4/view.s;for(const o of sel){const b=bbox(o);ctx.strokeRect(b.x-m,b.y-m,b.w+2*m,b.h+2*m)}
@@ -1951,6 +2080,7 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===1||tool==='pan'||spaceDown||(penOnly&&e.pointerType==='touch'&&tool!=='select')){drag={type:'pan',sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y};cv.style.cursor='grabbing';return}
   if(e.button!==0&&role!=='draw')return;
   const p=toWorld(e);
+  if(typeof cgSlicing!=='undefined'&&cgSlicing){drag={type:'slice',p1:p,p2:p};requestDraw();return}
   const hd=instDown(p);if(hd){drag=hd;requestDraw();return}
   /* áp lòng bàn tay khi đang viết, vẽ: lau bảng */
   const palm=palmOf(e);if(palm&&(tool==='pen'||tool==='hl'||SHAPES.includes(tool))){palmNotice(Math.max(e.width,e.height));drag={type:'erase',changed:false,mode:'part',r:palm/view.s,palm:true};eraseAt(p);return}
@@ -1960,6 +2090,24 @@ cv.addEventListener('pointerdown',e=>{
   else if(tool==='stamp')stampAt(p);
   else if(tool==='text'){e.preventDefault();const ot=topHit(p);if(ot&&ot.type==='text'){sel.clear();startText(null,ot)}else startText(p)}
   else if(tool==='select'){
+    if(sel.size===1){
+      const selObj=[...sel][0];
+      if(selObj.type==='piece'){
+        let hx,hy;
+        if(selObj.kind==='sector'){
+          const midA=(selObj.a1+selObj.a2+(selObj.rot||0)*2)/2;
+          hx=selObj.cx+Math.cos(midA)*(selObj.r+14/view.s);
+          hy=selObj.cy+Math.sin(midA)*(selObj.r+14/view.s);
+        }else if(selObj.pts){
+          const b=bbox(selObj);
+          hx=b.x+b.w/2;hy=b.y-14/view.s;
+        }
+        if(hx!==undefined&&Math.hypot(p.x-hx,p.y-hy)<14*touchTol(e)/view.s){
+          drag={type:'rotPiece',o:selObj,startP:p,moved:false};
+          requestDraw();return;
+        }
+      }
+    }
     const rh=tvRotHandle();
     if(rh&&Math.hypot(p.x-rh.x,p.y-rh.y)<14*touchTol(e)/view.s){
       const t=rh.o.type==='rev'?rh.o:rh.o.tv;if(rh.o.type==='tvfig'&&t.proj!=='xoay'){t.proj='xoay';if(!isFinite(t.yaw))t.yaw=20;if(!isFinite(t.pitch))t.pitch=20}
@@ -1991,7 +2139,24 @@ cv.addEventListener('pointermove',e=>{
   if(!drag)return;
   if(drag.type==='laser'||drag.type==='curtain'){presMove(e);return}
   const p=toWorld(e);
-  if(drag.type==='inst')instMove(drag,p);
+  if(drag.type==='slice'){drag.p2=p;requestDraw();return}
+  else if(drag.type==='rotPiece'){
+    const o=drag.o;
+    if(o.kind==='sector'){
+      const midA=(o.a1+o.a2)/2;
+      const curA=cgAngle(o.cx,o.cy,p.x,p.y);
+      o.rot=curA-midA;
+    }else if(o.pts){
+      const[cx,cy]=cgCentroid(o.pts);
+      const a0=cgAngle(cx,cy,drag.startP.x,drag.startP.y);
+      const a1=cgAngle(cx,cy,p.x,p.y);
+      const diff=a1-a0;
+      o.pts=o.pts.map(pt=>cgRotPt(pt[0],pt[1],cx,cy,diff));
+      drag.startP=p;
+    }
+    drag.moved=true;
+  }
+  else if(drag.type==='inst')instMove(drag,p);
   else if(drag.type==='tvrot'){const t=drag.o.type==='rev'?drag.o:drag.o.tv;t.yaw=Math.round(drag.yaw0+(e.clientX-drag.sx)*.5);t.pitch=Math.round(clamp(drag.pitch0+(e.clientY-drag.sy)*.4,-85,85));drag.moved=true}
   else if(drag.type==='pan'){view.x=drag.vx-(e.clientX-drag.sx)/view.s;view.y=drag.vy-(e.clientY-drag.sy)/view.s}
   else if(drag.type==='draw'&&palmOf(e)&&cur.pts.length<12){cur=null;drag={type:'erase',changed:false,mode:'part',r:palmOf(e)/view.s,palm:true};eraseAt(p)}
@@ -2032,6 +2197,8 @@ function endPointer(e){
   if(drag.group&&pointers.size){return}
   const d=drag;drag=null;
   if(d.type==='laser'){laser.cur=null;requestDraw();return}
+  if(d.type==='slice'){cgApplySlice(d.p1,d.p2);requestDraw();return}
+  if(d.type==='rotPiece'){cgSnapPiece(d.o);commit();requestDraw();return}
   if(d.type==='curtain'){commit();return}
   if(d.type==='inst')instUp(d);
   else if(d.type==='pan')setCursor();
@@ -2047,7 +2214,7 @@ function endPointer(e){
     const x=Math.min(d.a.x,d.b.x),y=Math.min(d.a.y,d.b.y),w=Math.abs(d.a.x-d.b.x),h=Math.abs(d.a.y-d.b.y);
     if(w>2||h>2)for(const o of objs){if(o.lock)continue;const b=bbox(o);if(b.x<x+w&&b.x+b.w>x&&b.y<y+h&&b.y+b.h>y)sel.add(o)}
   }
-  else if(d.moved){baseC=null;commit()}
+  else if(d.moved){for(const o of sel)if(o.type==='piece')cgSnapPiece(o);baseC=null;commit()}
   requestDraw();
 }
 cv.addEventListener('pointerup',endPointer);cv.addEventListener('pointercancel',endPointer);
@@ -2817,6 +2984,1080 @@ $('#geoForm').addEventListener('submit',()=>{
   commit();
 });
 new ResizeObserver(()=>{if($('#geoDlg').open)geoPaint()}).observe(gCv());
+/* ---------- cắt, ghép hình phẳng: tổng ba góc tam giác, biến đổi diện tích, Tangram, cắt đa giác ----------
+   Hỗ trợ học sinh và giáo viên trực quan hoá tư duy hình học:
+   - Cắt góc tam giác, tứ giác: tách thành các mảnh quạt góc (sector), kéo chụm đỉnh vào đường thẳng mốc để ghép thành 180° (góc bẹt) hoặc 360°.
+   - Khám phá diện tích SGK: hình bình hành → hình chữ nhật, tam giác → hình chữ nhật, hình thang, hình tròn (nan quạt), Pythagore.
+   - Tangram (7 miếng ghép): xoay, lật, bắt dính (snap) cạnh và đỉnh, ghép theo bóng hình mẫu.
+   - Kéo cắt tự do: cắt đa giác thành 2 mảnh bằng đường thẳng. */
+
+const CG_COLORS = ['#e02020', '#1565d8', '#ff8a00', '#1fb814', '#9c27b0', '#009688', '#e91e63'];
+
+/* Tính góc của điểm p quanh tâm c theo radian [0, 2π) */
+function cgAngle(cx, cy, px, py) {
+  let a = Math.atan2(py - cy, px - cx);
+  if (a < 0) a += 2 * Math.PI;
+  return a;
+}
+
+/* Khoảng cách có dấu từ điểm P đến đường thẳng đi qua P1 -> P2 */
+function cgDistToLine(px, py, x1, y1, x2, y2) {
+  return (px - x1) * (y2 - y1) - (py - y1) * (x2 - x1);
+}
+
+/* Giao điểm của đoạn thẳng AB với đường thẳng đi qua CD */
+function cgSegLineInter(ax, ay, bx, by, cx, cy, dx, dy) {
+  const d1 = cgDistToLine(ax, ay, cx, cy, dx, dy);
+  const d2 = cgDistToLine(bx, by, cx, cy, dx, dy);
+  if (Math.abs(d1 - d2) < 1e-9) return null;
+  const t = d1 / (d1 - d2);
+  return [ax + t * (bx - ax), ay + t * (by - ay)];
+}
+
+/* Cắt đa giác pts bằng đường thẳng L1 -> L2, trả về [poly1, poly2] */
+function cgSlicePoly(pts, x1, y1, x2, y2) {
+  if (!pts || pts.length < 3) return null;
+  const polyA = [], polyB = [];
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const cur = pts[i];
+    const nxt = pts[(i + 1) % n];
+    const dCur = cgDistToLine(cur[0], cur[1], x1, y1, x2, y2);
+    const dNxt = cgDistToLine(nxt[0], nxt[1], x1, y1, x2, y2);
+
+    if (dCur >= -1e-6) polyA.push([cur[0], cur[1]]);
+    if (dCur <= 1e-6) polyB.push([cur[0], cur[1]]);
+
+    if ((dCur > 1e-6 && dNxt < -1e-6) || (dCur < -1e-6 && dNxt > 1e-6)) {
+      const inter = cgSegLineInter(cur[0], cur[1], nxt[0], nxt[1], x1, y1, x2, y2);
+      if (inter) {
+        polyA.push(inter);
+        polyB.push(inter);
+      }
+    }
+  }
+  if (polyA.length < 3 || polyB.length < 3) return null;
+  return [polyA, polyB];
+}
+
+/* Trọng tâm đa giác */
+function cgCentroid(pts) {
+  let cx = 0, cy = 0;
+  for (const p of pts) { cx += p[0]; cy += p[1]; }
+  return [cx / pts.length, cy / pts.length];
+}
+
+/* Xoay điểm (x, y) quanh tâm (cx, cy) một góc rad */
+function cgRotPt(x, y, cx, cy, rad) {
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const dx = x - cx, dy = y - cy;
+  return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+}
+
+/* Cắt các góc từ hình đa giác/tam giác/chữ nhật thành các mảnh quạt sector */
+function cgCutAngles(o, radR = 52) {
+  let verts = [];
+  if (o.type === 'tri') verts = triPts(o);
+  else if (o.type === 'rect') {
+    const b = bbox(o);
+    verts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+  } else if (o.type === 'piece' && o.kind === 'poly') verts = o.pts;
+  else if (o.pts && o.pts.length >= 3) verts = o.pts;
+  if (verts.length < 3) return [];
+
+  const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+  const pieces = [];
+  const n = verts.length;
+
+  for (let i = 0; i < n; i++) {
+    const prev = verts[(i - 1 + n) % n];
+    const cur = verts[i];
+    const next = verts[(i + 1) % n];
+
+    let aPrev = cgAngle(cur[0], cur[1], prev[0], prev[1]);
+    let aNext = cgAngle(cur[0], cur[1], next[0], next[1]);
+
+    // Đảm bảo quét theo góc nhỏ hơn 180 độ
+    let diff = aNext - aPrev;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+
+    let start = aPrev, sweep = diff;
+    if (sweep < 0) {
+      start = aNext;
+      sweep = -sweep;
+    }
+    const deg = Math.round(sweep * 180 / Math.PI);
+
+    pieces.push({
+      type: 'piece',
+      kind: 'sector',
+      cx: cur[0],
+      cy: cur[1],
+      r: radR,
+      a1: start,
+      a2: start + sweep,
+      sweep: sweep,
+      ang: deg,
+      label: labels[i] || ('Góc ' + (i + 1)),
+      fill: CG_COLORS[i % CG_COLORS.length],
+      color: 'ink',
+      rot: 0,
+      origId: o.id || 0,
+      vIdx: i
+    });
+  }
+  return pieces;
+}
+
+/* Vẽ một mảnh ghép (piece) */
+function drawPiece(c, o, scale) {
+  c.save();
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+
+  if (o.kind === 'sector') {
+    // Mảnh quạt góc
+    const rot = o.rot || 0;
+    const a1 = o.a1 + rot;
+    const a2 = o.a2 + rot;
+    const r = o.r || 50;
+
+    c.beginPath();
+    c.moveTo(o.cx, o.cy);
+    c.arc(o.cx, o.cy, r, a1, a2, false);
+    c.closePath();
+
+    c.globalAlpha = 0.55;
+    c.fillStyle = o.fill || '#1565d8';
+    c.fill();
+    c.globalAlpha = 1;
+
+    c.strokeStyle = res(o.color || 'ink');
+    c.lineWidth = (o.size || 2);
+    c.stroke();
+
+    // Điểm mút đỉnh góc
+    c.fillStyle = theme.ink;
+    c.beginPath();
+    c.arc(o.cx, o.cy, 3.5 / scale, 0, 7);
+    c.fill();
+
+    // Nhãn góc (ví dụ: A, B, C)
+    const midA = (a1 + a2) / 2;
+    const lx = o.cx + Math.cos(midA) * (r * 0.62);
+    const ly = o.cy + Math.sin(midA) * (r * 0.62);
+
+    c.font = 'bold ' + Math.max(13, r * 0.3) + 'px ' + FONT;
+    c.fillStyle = '#111';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(o.label || '', lx, ly);
+
+    // Nếu đang được chọn: vẽ tay cầm xoay quanh đỉnh ở mép ngoài
+    if (sel.has(o)) {
+      const hx = o.cx + Math.cos(midA) * (r + 14 / scale);
+      const hy = o.cy + Math.sin(midA) * (r + 14 / scale);
+      c.strokeStyle = theme.accent;
+      c.lineWidth = 1.4 / scale;
+      c.beginPath();
+      c.moveTo(o.cx + Math.cos(midA) * r, o.cy + Math.sin(midA) * r);
+      c.lineTo(hx, hy);
+      c.stroke();
+
+      c.fillStyle = theme.accent;
+      c.beginPath();
+      c.arc(hx, hy, 5 / scale, 0, 7);
+      c.fill();
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.arc(hx, hy, 2.5 / scale, 0, 7);
+      c.fill();
+    }
+  } else if (o.kind === 'poly' || o.kind === 'tangram') {
+    // Mảnh đa giác
+    const pts = o.pts;
+    if (pts && pts.length >= 3) {
+      c.beginPath();
+      pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
+      c.closePath();
+
+      c.globalAlpha = 0.62;
+      c.fillStyle = o.fill || '#1565d8';
+      c.fill();
+      c.globalAlpha = 1;
+
+      c.strokeStyle = res(o.color || 'ink');
+      c.lineWidth = (o.size || 2);
+      c.stroke();
+
+      if (o.label) {
+        const [cx, cy] = cgCentroid(pts);
+        c.font = 'bold 15px ' + FONT;
+        c.fillStyle = '#111';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(o.label, cx, cy);
+      }
+
+      // Nếu đang chọn: vẽ chấm xoay trên đầu
+      if (sel.has(o)) {
+        const b = bbox(o);
+        const hx = b.x + b.w / 2;
+        const hy = b.y - 14 / scale;
+        c.strokeStyle = theme.accent;
+        c.lineWidth = 1.4 / scale;
+        c.beginPath();
+        c.moveTo(hx, b.y);
+        c.lineTo(hx, hy);
+        c.stroke();
+
+        c.fillStyle = theme.accent;
+        c.beginPath();
+        c.arc(hx, hy, 5 / scale, 0, 7);
+        c.fill();
+      }
+    }
+  } else if (o.kind === 'baseline') {
+    // Đường thẳng mốc kèm điểm O để học sinh kéo các góc vào
+    c.strokeStyle = res(o.color || 'ink');
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(o.x1, o.y1);
+    c.lineTo(o.x2, o.y2);
+    c.stroke();
+
+    // Mũi tên 2 đầu
+    c.fillStyle = res(o.color || 'ink');
+    c.font = 'italic 15px "Times New Roman",serif';
+    c.textAlign = 'right';
+    c.fillText('x', o.x1 - 8, o.y1 + 4);
+    c.textAlign = 'left';
+    c.fillText('y', o.x2 + 8, o.y2 + 4);
+
+    // Điểm mốc O
+    c.beginPath();
+    c.arc(o.ox, o.oy, 5, 0, 7);
+    c.fillStyle = '#e02020';
+    c.fill();
+    c.strokeStyle = '#fff';
+    c.lineWidth = 1.5;
+    c.stroke();
+
+    c.font = 'bold 15px ' + FONT;
+    c.fillStyle = '#e02020';
+    c.textAlign = 'center';
+    c.fillText('O (Ghép góc tại đây)', o.ox, o.oy + 22);
+  } else if (o.kind === 'target') {
+    // Khung bóng mờ để học sinh ghép hình vào
+    const pts = o.pts;
+    if (pts && pts.length >= 3) {
+      c.setLineDash([6 / scale, 4 / scale]);
+      c.beginPath();
+      pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
+      c.closePath();
+
+      c.fillStyle = 'rgba(128, 128, 128, 0.12)';
+      c.fill();
+      c.strokeStyle = 'rgba(128, 128, 128, 0.65)';
+      c.lineWidth = 1.8 / scale;
+      c.stroke();
+      c.setLineDash([]);
+
+      if (o.title) {
+        const [cx, cy] = cgCentroid(pts);
+        c.font = '14px ' + FONT;
+        c.fillStyle = theme.muted;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(o.title, cx, cy);
+      }
+    }
+  }
+
+  c.restore();
+}
+
+/* Hộp bao quanh của piece */
+function cgPieceBBox(o) {
+  if (o.kind === 'sector') {
+    const r = o.r || 50;
+    return { x: o.cx - r, y: o.cy - r, w: r * 2, h: r * 2 };
+  }
+  if (o.kind === 'baseline') {
+    return {
+      x: Math.min(o.x1, o.x2),
+      y: Math.min(o.y1, o.oy) - 10,
+      w: Math.abs(o.x2 - o.x1),
+      h: Math.max(30, Math.abs(o.oy - o.y1) + 30)
+    };
+  }
+  if (o.pts && o.pts.length) {
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (const p of o.pts) {
+      minX = Math.min(minX, p[0]);
+      minY = Math.min(minY, p[1]);
+      maxX = Math.max(maxX, p[0]);
+      maxY = Math.max(maxY, p[1]);
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+  return { x: 0, y: 0, w: 50, h: 50 };
+}
+
+/* Kiểm tra bấm trúng mảnh ghép */
+function cgPieceHit(o, p, tol) {
+  if (o.kind === 'sector') {
+    const d = Math.hypot(p.x - o.cx, p.y - o.cy);
+    if (d > (o.r || 50) + tol) return false;
+    let a = cgAngle(o.cx, o.cy, p.x, p.y);
+    const rot = o.rot || 0;
+    let a1 = (o.a1 + rot) % (2 * Math.PI);
+    if (a1 < 0) a1 += 2 * Math.PI;
+    let a2 = (o.a2 + rot) % (2 * Math.PI);
+    if (a2 < 0) a2 += 2 * Math.PI;
+
+    if (a1 <= a2) return a >= a1 - 0.05 && a <= a2 + 0.05;
+    return a >= a1 - 0.05 || a <= a2 + 0.05;
+  }
+  if (o.kind === 'baseline') {
+    return distSeg(p.x, p.y, o.x1, o.y1, o.x2, o.y2) <= tol + 6;
+  }
+  if (o.pts && o.pts.length >= 3) {
+    // Thuật toán Ray-casting điểm trong đa giác
+    let inside = false;
+    const pts = o.pts, n = pts.length;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = pts[i][0], yi = pts[i][1];
+      const xj = pts[j][0], yj = pts[j][1];
+      if (((yi > p.y) !== (yj > p.y)) && (p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+      if (distSeg(p.x, p.y, xi, yi, xj, yj) <= tol) return true;
+    }
+    return inside;
+  }
+  return false;
+}
+
+/* Di chuyển piece */
+function cgMovePiece(o, dx, dy) {
+  if (o.kind === 'sector') {
+    o.cx += dx;
+    o.cy += dy;
+  } else if (o.kind === 'baseline') {
+    o.x1 += dx; o.x2 += dx;
+    o.y1 += dy; o.y2 += dy;
+    o.ox += dx; o.oy += dy;
+  } else if (o.pts) {
+    for (const p of o.pts) {
+      p[0] += dx;
+      p[1] += dy;
+    }
+  }
+}
+
+/* Tự động bắt dính đỉnh và góc (Magnetic Snapping) khi di chuyển mảnh ghép */
+function cgSnapPiece(o) {
+  if (o.kind === 'sector') {
+    // 1. Bắt dính đỉnh (cx, cy) vào mốc O hoặc đỉnh của mảnh sector khác
+    let bestSnap = null, minDist = 22 / view.s;
+    for (const other of objs) {
+      if (other === o || other.type !== 'piece') continue;
+      if (other.kind === 'baseline' && other.ox !== undefined) {
+        const d = Math.hypot(o.cx - other.ox, o.cy - other.oy);
+        if (d < minDist) { minDist = d; bestSnap = { x: other.ox, y: other.oy, base: other }; }
+      } else if (other.kind === 'sector') {
+        const d = Math.hypot(o.cx - other.cx, o.cy - other.cy);
+        if (d < minDist) { minDist = d; bestSnap = { x: other.cx, y: other.cy, sector: other }; }
+      }
+    }
+    if (bestSnap) {
+      o.cx = bestSnap.x;
+      o.cy = bestSnap.y;
+
+      // 2. Tự động bắt dính góc quay vào mép của mảnh bên cạnh hoặc trục ngang
+      const curRot = o.rot || 0;
+      const mySweep = o.sweep || (o.a2 - o.a1);
+
+      // Nếu có mảnh kề chung đỉnh: thử xoay áp sát mép mảnh đó
+      for (const other of objs) {
+        if (other === o || other.type !== 'piece' || other.kind !== 'sector') continue;
+        if (Math.hypot(o.cx - other.cx, o.cy - other.cy) < 2) {
+          const otherRot = other.rot || 0;
+          const otherA1 = other.a1 + otherRot;
+          const otherA2 = other.a2 + otherRot;
+
+          // Thử ghép mép start của mình vào end của mảnh kia
+          const targetRot1 = otherA2 - o.a1;
+          let diffRot1 = (curRot - targetRot1) % (2 * Math.PI);
+          while (diffRot1 < -Math.PI) diffRot1 += 2 * Math.PI;
+          while (diffRot1 > Math.PI) diffRot1 -= 2 * Math.PI;
+
+          if (Math.abs(diffRot1) < 0.28) { // trong tầm 16 độ
+            o.rot = targetRot1;
+            break;
+          }
+
+          // Hoặc mép end của mình vào start của mảnh kia
+          const targetRot2 = otherA1 - o.a2;
+          let diffRot2 = (curRot - targetRot2) % (2 * Math.PI);
+          while (diffRot2 < -Math.PI) diffRot2 += 2 * Math.PI;
+          while (diffRot2 > Math.PI) diffRot2 -= 2 * Math.PI;
+
+          if (Math.abs(diffRot2) < 0.28) {
+            o.rot = targetRot2;
+            break;
+          }
+        }
+      }
+
+      // 3. Kiểm tra xem 3 góc tam giác đã ghép thành 180° chưa
+      cgCheck180(o.cx, o.cy);
+    }
+  } else if (o.kind === 'poly' || o.kind === 'tangram') {
+    // Bắt dính đỉnh đa giác vào đỉnh đa giác khác hoặc khung target
+    let snapDx = 0, snapDy = 0, found = false;
+    const tol = 14 / view.s;
+    for (const p of o.pts) {
+      for (const other of objs) {
+        if (other === o || other.type !== 'piece' || (!other.pts)) continue;
+        for (const q of other.pts) {
+          const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+          if (d < tol) {
+            snapDx = q[0] - p[0];
+            snapDy = q[1] - p[1];
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (found) break;
+    }
+    if (found) {
+      cgMovePiece(o, snapDx, snapDy);
+    }
+  }
+}
+
+/* Kiểm tra tổng các góc có chung đỉnh (cx, cy) xem có đạt 180° hay 360° */
+let cgLastCelebration = 0;
+function cgCheck180(cx, cy) {
+  const commonSectors = objs.filter(o => o.type === 'piece' && o.kind === 'sector' && Math.hypot(o.cx - cx, o.cy - cy) < 4);
+  if (commonSectors.length >= 3) {
+    let sumDeg = 0;
+    for (const s of commonSectors) sumDeg += (s.ang || 0);
+
+    const now = performance.now();
+    if (Math.abs(sumDeg - 180) <= 2 && now - cgLastCelebration > 4000) {
+      cgLastCelebration = now;
+      toast('🎉 Tuyệt vời! ' + commonSectors.length + ' góc ghép lại tạo thành một góc bẹt 180° chuẩn xác!');
+    } else if (Math.abs(sumDeg - 360) <= 2 && now - cgLastCelebration > 4000) {
+      cgLastCelebration = now;
+      toast('🎉 Xuất sắc! ' + commonSectors.length + ' góc đã ghép kín thành 360° (vòng tròn hoàn chỉnh)!');
+    }
+  }
+}
+
+/* Xoay mảnh ghép một góc độ */
+function cgRotatePiece(o, deg = 45) {
+  const rad = deg * Math.PI / 180;
+  if (o.kind === 'sector') {
+    o.rot = (o.rot || 0) + rad;
+  } else if (o.pts) {
+    const [cx, cy] = cgCentroid(o.pts);
+    o.pts = o.pts.map(p => cgRotPt(p[0], p[1], cx, cy, rad));
+  }
+  cgSnapPiece(o);
+  commit();
+}
+
+/* Lật mảnh ghép đối xứng ngang/dọc */
+function cgFlipPiece(o, axis = 'h') {
+  if (o.pts) {
+    const [cx, cy] = cgCentroid(o.pts);
+    o.pts = o.pts.map(p => {
+      const x = axis === 'h' ? cx - (p[0] - cx) : p[0];
+      const y = axis === 'v' ? cy - (p[1] - cy) : p[1];
+      return [x, y];
+    });
+    // Đảo thứ tự điểm để bảo toàn hướng đa giác
+    o.pts.reverse();
+    commit();
+  }
+}
+
+/* ---------- CÁC MẪU DỰNG SẴN CHUẨN SGK (PRESETS) ---------- */
+
+/* Mẫu 1: Tổng 3 góc trong một tam giác bằng 180° */
+function cgInsertTriangleAngleSum() {
+  commitText();
+  const c = center();
+  const ox = c.x, oy = c.y - 70;
+
+  // 1. Tam giác mẫu ở trên
+  const triObj = {
+    type: 'tri',
+    x1: ox - 180,
+    y1: oy - 110,
+    x2: ox + 180,
+    y2: oy + 90,
+    color: 'ink',
+    size: 2,
+    fill: true
+  };
+
+  // 2. Cắt sẵn 3 mảnh góc 3 màu
+  const sectors = cgCutAngles(triObj, 55);
+  // Dời 3 góc hơi lệch ra ngoài một chút để học sinh thấy rõ là các góc đã được cắt rời
+  if (sectors[0]) { sectors[0].cx -= 15; sectors[0].cy -= 18; }
+  if (sectors[1]) { sectors[1].cx += 20; sectors[1].cy += 12; }
+  if (sectors[2]) { sectors[2].cx -= 20; sectors[2].cy += 12; }
+
+  // 3. Đường thẳng mốc xy nằm ngang có điểm O ở dưới
+  const baseLine = {
+    type: 'piece',
+    kind: 'baseline',
+    x1: ox - 260,
+    y1: oy + 210,
+    x2: ox + 260,
+    y2: oy + 210,
+    ox: ox,
+    oy: oy + 210,
+    color: 'ink',
+    pin: true
+  };
+
+  // 4. Nhãn hướng dẫn
+  const guideText = {
+    type: 'text',
+    x: ox - 240,
+    y: oy + 245,
+    text: '👉 Kéo 3 đỉnh góc A, B, C chụm vào điểm O trên đường thẳng xy để kiểm chứng tổng ba góc bằng 180°',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(triObj, ...sectors, baseLine, guideText);
+  setTool('select');
+  sel.clear();
+  sectors.forEach(s => sel.add(s));
+  commit();
+  toast('Đã chèn hoạt động: Tổng 3 góc tam giác. Kéo các góc về điểm O trên đường thẳng!');
+}
+
+/* Mẫu 2: Tổng 4 góc trong tứ giác bằng 360° */
+function cgInsertQuadAngleSum() {
+  commitText();
+  const c = center();
+  const ox = c.x - 120, oy = c.y - 50;
+
+  const pts = [
+    [ox - 130, oy - 100], // A
+    [ox + 110, oy - 110], // B
+    [ox + 140, oy + 90],  // C
+    [ox - 110, oy + 120]  // D
+  ];
+
+  const quadObj = {
+    type: 'piece',
+    kind: 'poly',
+    pts: pts,
+    color: 'ink',
+    size: 2,
+    fill: 'rgba(0,0,0,0.05)',
+    pin: true
+  };
+
+  const sectors = cgCutAngles(quadObj, 50);
+
+  // Điểm mốc O bên phải
+  const basePoint = {
+    type: 'piece',
+    kind: 'baseline',
+    x1: c.x + 120,
+    y1: oy,
+    x2: c.x + 280,
+    y2: oy,
+    ox: c.x + 200,
+    oy: oy,
+    color: 'ink',
+    pin: true
+  };
+
+  const guideText = {
+    type: 'text',
+    x: c.x - 220,
+    y: oy + 180,
+    text: '👉 Kéo 4 góc A, B, C, D ghép quanh điểm O để thấy 4 góc ghép kín 360°',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(quadObj, ...sectors, basePoint, guideText);
+  setTool('select');
+  sel.clear();
+  sectors.forEach(s => sel.add(s));
+  commit();
+  toast('Đã chèn hoạt động: Tổng 4 góc tứ giác bằng 360°.');
+}
+
+/* Mẫu 3: Khám phá diện tích Hình bình hành -> Hình chữ nhật */
+function cgInsertPgramArea() {
+  commitText();
+  const c = center();
+  const x0 = c.x - 220, y0 = c.y - 80, a = 240, h = 120, dx = 65;
+
+  // Hình bình hành gồm: 1 tam giác vuông bên trái + 1 hình thang vuông bên phải
+  const triPts = [[x0, y0 + h], [x0 + dx, y0], [x0 + dx, y0 + h]];
+  const trapPts = [[x0 + dx, y0], [x0 + a + dx, y0], [x0 + a, y0 + h], [x0 + dx, y0 + h]];
+
+  const triPiece = {
+    type: 'piece',
+    kind: 'poly',
+    pts: triPts,
+    fill: '#e02020',
+    color: 'ink',
+    size: 2,
+    label: 'Cắt dời ▶'
+  };
+
+  const trapPiece = {
+    type: 'piece',
+    kind: 'poly',
+    pts: trapPts,
+    fill: '#1565d8',
+    color: 'ink',
+    size: 2,
+    label: 'Giữ nguyên'
+  };
+
+  // Khung đích hình chữ nhật nét đứt bên cạnh để học sinh ghép vào
+  const targetRect = {
+    type: 'piece',
+    kind: 'target',
+    pts: [[x0 + dx, y0], [x0 + a + dx, y0], [x0 + a + dx, y0 + h], [x0 + dx, y0 + h]],
+    title: 'Hình chữ nhật tương đương (S = a × h)',
+    pin: true
+  };
+
+  const formulaText = {
+    type: 'text',
+    x: x0 - 30,
+    y: y0 + h + 45,
+    text: '✂️ Cắt tam giác vuông bên trái, trượt sang bên phải để ghép thành hình chữ nhật có cùng diện tích: S = a × h',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(targetRect, trapPiece, triPiece, formulaText);
+  setTool('select');
+  sel.clear();
+  sel.add(triPiece);
+  commit();
+  toast('Đã chèn mẫu: Diện tích hình bình hành → hình chữ nhật. Kéo mảnh tam giác sang phải!');
+}
+
+/* Mẫu 4: Khám phá diện tích Tam giác -> Hình bình hành */
+function cgInsertTriangleArea() {
+  commitText();
+  const c = center();
+  const x0 = c.x - 180, y0 = c.y - 80, b = 260, h = 130;
+
+  // Tam giác được cắt theo đường trung bình: nửa trên là tam giác nhỏ, nửa dưới là hình thang
+  const topTri = [[x0 + b * 0.45, y0], [x0 + b * 0.725, y0 + h / 2], [x0 + b * 0.225, y0 + h / 2]];
+  const botTrap = [[x0 + b * 0.225, y0 + h / 2], [x0 + b * 0.725, y0 + h / 2], [x0 + b, y0 + h], [x0, y0 + h]];
+
+  const p1 = {
+    type: 'piece',
+    kind: 'poly',
+    pts: topTri,
+    fill: '#ff8a00',
+    color: 'ink',
+    size: 2,
+    label: 'Xoay 180°'
+  };
+
+  const p2 = {
+    type: 'piece',
+    kind: 'poly',
+    pts: botTrap,
+    fill: '#1565d8',
+    color: 'ink',
+    size: 2,
+    label: 'Đáy a'
+  };
+
+  const guide = {
+    type: 'text',
+    x: x0 - 40,
+    y: y0 + h + 45,
+    text: '✂️ Cắt tam giác theo đường trung bình, xoay nửa trên 180° ghép xuống dưới để biến thành hình bình hành: S = (a × h) / 2',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(p2, p1, guide);
+  setTool('select');
+  sel.clear();
+  sel.add(p1);
+  commit();
+  toast('Đã chèn mẫu: Diện tích tam giác. Chọn mảnh trên rồi bấm 🔄 để xoay 180°!');
+}
+
+/* Mẫu 5: Khám phá diện tích Hình thang */
+function cgInsertTrapezoidArea() {
+  commitText();
+  const c = center();
+  const x0 = c.x - 240, y0 = c.y - 70, a = 220, b = 130, h = 110, offset = 40;
+
+  const t1 = [[x0 + offset, y0], [x0 + offset + b, y0], [x0 + a, y0 + h], [x0, y0 + h]];
+  // Hình thang thứ 2 được lật/xoay sẵn sàng ghép vào cạnh
+  const t2 = [[x0 + a + 60, y0], [x0 + a + 60 + a, y0], [x0 + a + 60 + a - offset, y0 + h], [x0 + a + 60 + a - offset - b, y0 + h]];
+
+  const piece1 = {
+    type: 'piece',
+    kind: 'poly',
+    pts: t1,
+    fill: '#1fb814',
+    color: 'ink',
+    size: 2,
+    label: 'Hình thang 1'
+  };
+
+  const piece2 = {
+    type: 'piece',
+    kind: 'poly',
+    pts: t2,
+    fill: '#9c27b0',
+    color: 'ink',
+    size: 2,
+    label: 'Xoay ghép'
+  };
+
+  const guide = {
+    type: 'text',
+    x: x0 - 30,
+    y: y0 + h + 45,
+    text: '🧩 Ghép hai hình thang bằng nhau (xoay 180°) thành hình bình hành có đáy là (a + b) ⇒ S = (a + b) × h / 2',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(piece1, piece2, guide);
+  setTool('select');
+  sel.clear();
+  sel.add(piece2);
+  commit();
+  toast('Đã chèn mẫu: Ghép 2 hình thang thành hình bình hành.');
+}
+
+/* Mẫu 6: Diện tích hình tròn (Nan quạt ghép so le) */
+function cgInsertCircleFanArea() {
+  commitText();
+  const c = center();
+  const ox = c.x - 200, oy = c.y, R = 85;
+
+  // Vẽ hình tròn gốc bên trái
+  const circ = {
+    type: 'ellipse',
+    x1: ox - R,
+    y1: oy - R,
+    x2: ox + R,
+    y2: oy + R,
+    color: 'ink',
+    size: 2,
+    fill: true,
+    pin: true
+  };
+
+  // 16 nan quạt xếp so le thành hình chữ nhật bên phải
+  const pieces = [];
+  const startX = c.x - 30, startY = oy;
+  const numFans = 16;
+  const w = (2 * Math.PI * R) / numFans;
+
+  for (let i = 0; i < numFans; i++) {
+    const isTop = (i % 2 === 0);
+    const px = startX + i * (w * 0.95);
+    const py = isTop ? startY - R / 2 : startY + R / 2;
+
+    // Mô phỏng nan quạt dạng tam giác cân gần đúng
+    const pts = isTop ?
+      [[px + w / 2, py - R / 2], [px + w, py + R / 2], [px, py + R / 2]] :
+      [[px + w / 2, py + R / 2], [px, py - R / 2], [px + w, py - R / 2]];
+
+    pieces.push({
+      type: 'piece',
+      kind: 'poly',
+      pts: pts,
+      fill: isTop ? '#1565d8' : '#ff8a00',
+      color: 'ink',
+      size: 1.5
+    });
+  }
+
+  const guide = {
+    type: 'text',
+    x: c.x - 220,
+    y: oy + R + 50,
+    text: '🔴 Cắt hình tròn thành 16 nan quạt ghép so le thành hình gần chữ nhật kích thước (π × r) và (r) ⇒ S = π × r²',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(circ, ...pieces, guide);
+  setTool('select');
+  commit();
+  toast('Đã chèn mẫu: Khám phá diện tích hình tròn bằng nan quạt.');
+}
+
+/* Mẫu 7: Ghép hình chứng minh Định lý Pythagore */
+function cgInsertPythagorasPuzzle() {
+  commitText();
+  const c = center();
+  const ox = c.x - 120, oy = c.y - 70;
+  const a = 90, b = 135, hyp = Math.round(Math.hypot(a, b)); // ~162
+
+  // 4 tam giác vuông bằng nhau
+  const t1 = [[ox, oy], [ox + b, oy], [ox, oy + a]];
+  const t2 = [[ox + 160, oy], [ox + 160 + b, oy], [ox + 160, oy + a]];
+  const t3 = [[ox, oy + 160], [ox + b, oy + 160], [ox, oy + 160 + a]];
+  const t4 = [[ox + 160, oy + 160], [ox + 160 + b, oy + 160], [ox + 160, oy + 160 + a]];
+
+  // 1 hình vuông nhỏ ở giữa (b - a)^2
+  const d = b - a;
+  const sq = [[ox + 340, oy + 50], [ox + 340 + d, oy + 50], [ox + 340 + d, oy + 50 + d], [ox + 340, oy + 50 + d]];
+
+  // Khung đích hình vuông c^2 bên phải để học sinh ghép vào
+  const targetX = c.x + 130, targetY = oy + 20;
+  const targetFrame = {
+    type: 'piece',
+    kind: 'target',
+    pts: [[targetX, targetY], [targetX + hyp, targetY], [targetX + hyp, targetY + hyp], [targetX, targetY + hyp]],
+    title: 'Khung hình vuông c² = a² + b²',
+    pin: true
+  };
+
+  const p1 = { type: 'piece', kind: 'poly', pts: t1, fill: '#1565d8', color: 'ink', size: 2, label: '1' };
+  const p2 = { type: 'piece', kind: 'poly', pts: t2, fill: '#e02020', color: 'ink', size: 2, label: '2' };
+  const p3 = { type: 'piece', kind: 'poly', pts: t3, fill: '#1fb814', color: 'ink', size: 2, label: '3' };
+  const p4 = { type: 'piece', kind: 'poly', pts: t4, fill: '#ff8a00', color: 'ink', size: 2, label: '4' };
+  const pSq = { type: 'piece', kind: 'poly', pts: sq, fill: '#9c27b0', color: 'ink', size: 2, label: '(b-a)²' };
+
+  const guide = {
+    type: 'text',
+    x: c.x - 220,
+    y: oy + 280,
+    text: '📐 Xoay và ghép 4 tam giác vuông (cạnh a, b) và 1 hình vuông nhỏ vào khung để thấy diện tích: a² + b² = c²',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(targetFrame, p1, p2, p3, p4, pSq, guide);
+  setTool('select');
+  commit();
+  toast('Đã chèn câu đố: Ghép hình chứng minh Định lý Pythagore!');
+}
+
+/* Mẫu 8: Trò chơi Tangram (Thất xảo đồ 7 miếng) */
+function cgInsertTangram(shapeType = 'cat') {
+  commitText();
+  const c = center();
+  const ox = c.x - 220, oy = c.y - 80, s = 140;
+
+  // 7 mảnh Tangram kinh điển theo chuẩn tỉ lệ hình vuông cạnh s
+  // 1. Tam giác lớn 1
+  const tL1 = [[ox, oy], [ox + s, oy], [ox, oy + s]];
+  // 2. Tam giác lớn 2
+  const tL2 = [[ox, oy], [ox + s, oy], [ox + s / 2, oy + s / 2]];
+  // 3. Tam giác vừa
+  const tM = [[ox + s, oy + s], [ox + s, oy + s / 2], [ox + s / 2, oy + s]];
+  // 4. Tam giác nhỏ 1
+  const tS1 = [[ox, oy + s], [ox + s / 4, oy + 3 * s / 4], [ox, oy + s / 2]];
+  // 5. Tam giác nhỏ 2
+  const tS2 = [[ox + s / 2, oy + s / 2], [ox + 3 * s / 4, oy + 3 * s / 4], [ox + s / 2, oy + s]];
+  // 6. Hình vuông nhỏ
+  const sq = [[ox + s / 4, oy + 3 * s / 4], [ox + s / 2, oy + s / 2], [ox + 3 * s / 4, oy + 3 * s / 4], [ox + s / 2, oy + s]];
+  // 7. Hình bình hành
+  const pg = [[ox + s, oy], [ox + s, oy + s / 2], [ox + 3 * s / 4, oy + 3 * s / 4], [ox + 3 * s / 4, oy + s / 4]];
+
+  // Dời các mảnh ra rải rác để học sinh ghép
+  const piecesData = [
+    { pts: tL1, fill: '#e02020', label: 'TG lớn' },
+    { pts: tL2, fill: '#1565d8', label: 'TG lớn' },
+    { pts: tM,  fill: '#ff8a00', label: 'TG vừa' },
+    { pts: tS1, fill: '#1fb814', label: 'TG nhỏ' },
+    { pts: tS2, fill: '#00bcd4', label: 'TG nhỏ' },
+    { pts: sq,  fill: '#9c27b0', label: 'Vuông' },
+    { pts: pg,  fill: '#ffeb3b', label: 'B.Hành' }
+  ];
+
+  const pieces = piecesData.map((d, i) => {
+    // Rải đều 7 miếng sang bên trái
+    const dx = (i % 4) * 85 - 80;
+    const dy = Math.floor(i / 4) * 95 - 40;
+    const movedPts = d.pts.map(p => [p[0] + dx, p[1] + dy]);
+    return {
+      type: 'piece',
+      kind: 'tangram',
+      pts: movedPts,
+      fill: d.fill,
+      color: 'ink',
+      size: 2,
+      label: d.label
+    };
+  });
+
+  // Khung bóng hình con mèo / thiên nga ở bên phải
+  const tx = c.x + 150, ty = oy;
+  const catSilhouette = [
+    [tx, ty - 60], [tx + 30, ty - 20], [tx + 60, ty - 60], [tx + 50, ty],
+    [tx + 120, ty + 70], [tx + 120, ty + 150], [tx + 40, ty + 150],
+    [tx - 20, ty + 90], [tx - 20, ty + 30], [tx, ty]
+  ];
+
+  const targetFrame = {
+    type: 'piece',
+    kind: 'target',
+    pts: catSilhouette,
+    title: 'Khung mẫu ghép Tangram (Con Mèo)',
+    pin: true
+  };
+
+  const guide = {
+    type: 'text',
+    x: c.x - 220,
+    y: oy + 220,
+    text: '🧩 Kéo, xoay (nút 🔄) và lật (nút ↔) 7 miếng ghép Tangram vào vừa khít khung bóng hình con mèo!',
+    color: 'ink',
+    fs: 17,
+    pin: true
+  };
+
+  objs.push(targetFrame, ...pieces, guide);
+  setTool('select');
+  commit();
+  toast('Đã chèn trò chơi Tangram 7 miếng ghép. Hãy thử xếp hình con mèo!');
+}
+
+/* ---------- CẮT ĐA GIÁC ĐANG CHỌN (SLICER) ---------- */
+let cgSlicing = false;
+function cgStartSlice() {
+  if (sel.size !== 1) {
+    toast('Hãy chọn một hình đa giác, tam giác hoặc hình chữ nhật cần cắt.');
+    return;
+  }
+  const o = [...sel][0];
+  if (o.type !== 'tri' && o.type !== 'rect' && !(o.type === 'piece' && (o.kind === 'poly' || o.kind === 'tangram'))) {
+    toast('Chỉ có thể cắt tam giác, hình chữ nhật hoặc đa giác phẳng.');
+    return;
+  }
+  cgSlicing = true;
+  cv.style.cursor = 'crosshair';
+  toast('Kéo một đường thẳng cắt ngang qua hình để chia làm hai mảnh!');
+}
+
+/* Thực hiện cắt hình khi người dùng nhả chuột/bút trong chế độ cắt */
+function cgApplySlice(p1, p2) {
+  if (!cgSlicing || sel.size !== 1) return false;
+  cgSlicing = false;
+  setCursor();
+
+  const o = [...sel][0];
+  let pts = [];
+  if (o.type === 'tri') pts = triPts(o);
+  else if (o.type === 'rect') {
+    const b = bbox(o);
+    pts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+  } else if (o.type === 'piece' && (o.kind === 'poly' || o.kind === 'tangram')) {
+    pts = o.pts;
+  }
+
+  if (pts.length < 3) return false;
+
+  const result = cgSlicePoly(pts, p1.x, p1.y, p2.x, p2.y);
+  if (!result) {
+    toast('Đường cắt chưa đi xuyên qua hai cạnh của hình. Vui lòng thử lại!');
+    return false;
+  }
+
+  // Thay thế hình cũ bằng 2 mảnh mới
+  const idx = objs.indexOf(o);
+  if (idx < 0) return false;
+
+  const piece1 = {
+    type: 'piece',
+    kind: 'poly',
+    pts: result[0],
+    fill: o.fill && o.fill !== true ? o.fill : '#1565d8',
+    color: o.color || 'ink',
+    size: o.size || 2
+  };
+
+  const piece2 = {
+    type: 'piece',
+    kind: 'poly',
+    pts: result[1],
+    fill: '#ff8a00',
+    color: o.color || 'ink',
+    size: o.size || 2
+  };
+
+  objs.splice(idx, 1, piece1, piece2);
+  sel.clear();
+  sel.add(piece1);
+  sel.add(piece2);
+  commit();
+  toast('Đã cắt hình thành 2 mảnh đa giác độc lập! Bạn có thể dời và xoay từng mảnh.');
+  return true;
+}
+
+/* ---------- HỘP THOẠI CẮT GHÉP HÌNH PHẲNG (UI DIALOG) ---------- */
+const cutDlg = $('#cutDlg');
+function openCutDlg() {
+  closePops();
+  if (cutDlg) cutDlg.showModal();
+}
+
+function initCutDlg() {
+  if (!$('#cutDlg')) return;
+
+  // Xử lý chuyển tab trong hộp thoại
+  const tabs = document.querySelectorAll('#cutTabs button');
+  tabs.forEach(btn => {
+    btn.onclick = () => {
+      tabs.forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const tabName = btn.dataset.t;
+      document.querySelectorAll('.cutPane').forEach(p => p.hidden = (p.dataset.p !== tabName));
+    };
+  });
+
+  // Nút hành động các mẫu
+  $('#btnCutTriAngle').onclick = () => { cutDlg.close(); cgInsertTriangleAngleSum(); };
+  $('#btnCutQuadAngle').onclick = () => { cutDlg.close(); cgInsertQuadAngleSum(); };
+  $('#btnCutPgram').onclick = () => { cutDlg.close(); cgInsertPgramArea(); };
+  $('#btnCutTriArea').onclick = () => { cutDlg.close(); cgInsertTriangleArea(); };
+  $('#btnCutTrap').onclick = () => { cutDlg.close(); cgInsertTrapezoidArea(); };
+  $('#btnCutCircle').onclick = () => { cutDlg.close(); cgInsertCircleFanArea(); };
+  $('#btnCutPythagoras').onclick = () => { cutDlg.close(); cgInsertPythagorasPuzzle(); };
+  $('#btnCutTangram').onclick = () => { cutDlg.close(); cgInsertTangram(); };
+
+  $('#cutClose').onclick = () => cutDlg.close();
+}
+
+initCutDlg();
+if ($('#shapeCutPaste')) $('#shapeCutPaste').onclick = openCutDlg;
+
 /* ---------- trải hình (khai triển) cho hình không gian dựng sẵn ----------
    Khối đa diện: các mặt nối với nhau thành cây quanh mặt đáy; mỗi mặt quay quanh cạnh gấp với mặt cha một góc
    (t × góc cần để nằm phẳng), mặt con quay theo mặt cha. Trụ, nón: mặt xung quanh cuộn ra quanh đường sinh phía trước,
@@ -5682,6 +6923,7 @@ $('#clipClose').onclick=()=>clipDlg.close();
 $('#mxTable').onclick=()=>{closePops();openTable()};$('#mxNote').onclick=()=>{closePops();openNote()};
 $('#mxStamp').onclick=()=>{for(const b of stGrid.children)b._draw();togglePop('popStamp',insAnchor())};
 $('#mxClip').onclick=openClips;$('#mxPick').onclick=openPicker;$('#mxTimer').onclick=()=>togglePop('popTimer',insAnchor());
+if($('#mxCutPaste'))$('#mxCutPaste').onclick=openCutDlg;
 $('#mxCallout').onclick=()=>{closePops();setTool('callout');toast('Kéo từ chi tiết cần chỉ tới chỗ muốn đặt chữ, rồi gõ nhãn.')};
 /* thêm nút vào thanh thao tác khi chọn */
 Object.assign(sbBtn,{
@@ -5689,9 +6931,18 @@ Object.assign(sbBtn,{
   crop:mkBtn(SB,pa('M6 2v16h16M2 6h16v16'),'Cắt ảnh',()=>{const o=[...sel][0];if(o)openCrop(o)}),
   bold:mkBtn(SB,'<b style="font:800 22px serif">B</b>','Chữ đậm',()=>styleSel('b')),
   ital:mkBtn(SB,'<i style="font:italic 600 22px serif">I</i>','Chữ nghiêng',()=>styleSel('i')),
-  tbg:mkBtn(SB,'<span style="background:#fff59d;color:#222;padding:0 5px;border-radius:4px;font:700 17px sans-serif">A</span>','Tô nền cho chữ (bấm nhiều lần để đổi màu)',()=>styleSel('bg'))});
+  tbg:mkBtn(SB,'<span style="background:#fff59d;color:#222;padding:0 5px;border-radius:4px;font:700 17px sans-serif">A</span>','Tô nền cho chữ (bấm nhiều lần để đổi màu)',()=>styleSel('bg')),
+  cutAng:mkBtn(SB,svg('<path d="M6 9l6 6M6 15l6-6"/><circle cx="5" cy="8" r="2"/><circle cx="5" cy="16" r="2"/><path d="M12 12l8-5M12 12l8 5"/>'),'Cắt các góc thành các mảnh quạt riêng',()=>{
+    const o=[...sel][0];if(o){const pieces=cgCutAngles(o);if(pieces.length){objs.push(...pieces);sel.clear();pieces.forEach(p=>sel.add(p));commit();toast('Đã cắt '+pieces.length+' góc thành các mảnh quạt!')}}
+  }),
+  slice:mkBtn(SB,svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2"/>'),'Cắt đôi hình bằng đường thẳng (kéo vạch cắt qua hình)',cgStartSlice),
+  rot45:mkBtn(SB,svg('<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.6L21 8M21 3v5h-5"/>'),'Xoay mảnh ghép 45°',()=>{for(const o of sel)if(o.type==='piece')cgRotatePiece(o,45)}),
+  flip:mkBtn(SB,svg('<path d="M12 2v20M4 18l6-12v12zM20 18l-6-12v12z" stroke-dasharray="2 2"/>'),'Lật mảnh ghép đối xứng ngang',()=>{for(const o of sel)if(o.type==='piece')cgFlipPiece(o,'h')})});
 function syncSelExtra(){const L=[...sel],one=L.length===1&&L[0],img=one&&one.type==='image'&&!one.lock,txt=L.length&&L.every(o=>o.type==='text'||o.type==='note'||o.type==='callout');
-  sbBtn.rot.hidden=!L.some(o=>o.type==='image'&&!o.lock);sbBtn.crop.hidden=!img;sbBtn.bold.hidden=sbBtn.ital.hidden=!txt;sbBtn.tbg.hidden=!(txt&&L.some(o=>o.type==='text'))}
+  const piece=L.some(o=>o.type==='piece');
+  const cuttable=one&&(one.type==='tri'||one.type==='rect'||(one.type==='piece'&&(one.kind==='poly'||one.kind==='tangram')));
+  sbBtn.rot.hidden=!L.some(o=>o.type==='image'&&!o.lock);sbBtn.crop.hidden=!img;sbBtn.bold.hidden=sbBtn.ital.hidden=!txt;sbBtn.tbg.hidden=!(txt&&L.some(o=>o.type==='text'));
+  sbBtn.cutAng.hidden=!cuttable;sbBtn.slice.hidden=!cuttable;sbBtn.rot45.hidden=!piece;sbBtn.flip.hidden=!piece;}
 /* thư viện hình ToanViet theo từng nhóm */
 $('#mxLib').onclick=()=>openTvLib();$('#mxNumline').onclick=()=>openTvLib(1);$('#mxSolid').onclick=()=>openTvLib(2);$('#mxStat').onclick=()=>openTvLib(3);
 $('#mxLi').onclick=()=>openTvLib(4);$('#mxHoaSinh').onclick=()=>openTvLib(5);$('#mxTieuHoc').onclick=()=>openTvLib(7);
