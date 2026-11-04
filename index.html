@@ -2141,7 +2141,17 @@ cv.addEventListener('pointerdown',e=>{
     const o=topHit(p);
     if(o){
       if(e.altKey&&o.type==='graph'){sel.clear();sel.add(o);drag={type:'gpan',g:o,last:p,moved:false}}
-      else{if(!sel.has(o)){if(!e.shiftKey)sel.clear();sel.add(o)}else if(e.shiftKey)sel.delete(o);drag={type:'move',last:p,moved:false}}
+      else{
+        if(!sel.has(o)){
+          if(!e.shiftKey)sel.clear();
+          sel.add(o);
+          if(o.groupId)for(const other of objs)if(other.groupId===o.groupId)sel.add(other);
+        }else if(e.shiftKey){
+          sel.delete(o);
+          if(o.groupId)for(const other of objs)if(other.groupId===o.groupId)sel.delete(other);
+        }
+        drag={type:'move',last:p,moved:false};
+      }
     }else{if(!e.shiftKey)sel.clear();drag={type:'marquee',a:p,b:p}}
   }
   requestDraw();
@@ -4348,7 +4358,7 @@ let smartDraw = {
 };
 
 /* Thêm 2 vòng cung góc lệch nhau đánh dấu 2 góc bằng nhau theo chuẩn SGK Toán học */
-function smartAddAngleBisectorArcs(baseP, a1, a2, col, sz) {
+function smartAddAngleBisectorArcs(baseP, a1, a2, col, sz, gid = null) {
   const diffA = smartAngDiff(a2, a1);
   const bisA = a1 + diffA / 2;
   const r1 = 20, r2 = 27; // 2 vòng cung lệch nhau rõ rệt theo chuẩn SGK
@@ -4363,17 +4373,19 @@ function smartAddAngleBisectorArcs(baseP, a1, a2, col, sz) {
       const a = startA + diff * (k / steps);
       arcPts.push([+(baseP[0] + r * Math.cos(a)).toFixed(2), +(baseP[1] + r * Math.sin(a)).toFixed(2)]);
     }
-    return {
+    const o = {
       type: 'stroke',
       pts: arcPts,
       color: col || 'ink',
       size: sz || 1.4
     };
+    if (gid) o.groupId = gid;
+    return o;
   };
 
   const mkTick = (r, a) => {
     const ca = Math.cos(a), sa = Math.sin(a);
-    return {
+    const o = {
       type: 'stroke',
       pts: [
         [+(baseP[0] + (r - 3.5) * ca).toFixed(2), +(baseP[1] + (r - 3.5) * sa).toFixed(2)],
@@ -4382,6 +4394,8 @@ function smartAddAngleBisectorArcs(baseP, a1, a2, col, sz) {
       color: col || 'ink',
       size: sz || 1.4
     };
+    if (gid) o.groupId = gid;
+    return o;
   };
 
   // Cung 1 & vạch chia ở góc con 1
@@ -4394,12 +4408,12 @@ function smartAddAngleBisectorArcs(baseP, a1, a2, col, sz) {
 }
 
 /* Thêm ký hiệu góc vuông ⟂ tại chân đường cao */
-function smartAddRightAngleSymbol(baseP, curP, col, sz) {
+function smartAddRightAngleSymbol(baseP, curP, col, sz, gid = null) {
   const bp = baseP, cp = curP;
   const u1 = [cp[0] - bp[0], cp[1] - bp[1]], l1 = Math.hypot(u1[0], u1[1]) || 1;
   const v1 = [u1[0] / l1 * 11, u1[1] / l1 * 11];
   const v2 = [-v1[1], v1[0]];
-  objs.push({
+  const o = {
     type: 'stroke',
     pts: [
       [+(cp[0] - v1[0]).toFixed(2), +(cp[1] - v1[1]).toFixed(2)],
@@ -4408,7 +4422,9 @@ function smartAddRightAngleSymbol(baseP, curP, col, sz) {
     ],
     color: col || 'ink',
     size: sz || 1.4
-  });
+  };
+  if (gid) o.groupId = gid;
+  objs.push(o);
 }
 
 /* Thu thập tất cả các đoạn thẳng và đỉnh có trên bảng vẽ */
@@ -4787,13 +4803,14 @@ function smartFinishPolygon(closed = true) {
 
   // Khép kín đa giác (từ 3 đỉnh trở lên)
   if (closed && pts.length >= 3) {
+    const isFilled = !!fill;
     const poly = {
       type: 'piece',
       kind: 'poly',
       pts: pts.map(p => [+p[0].toFixed(2), +p[1].toFixed(2)]),
       color: color || 'ink',
-      fill: fill ? (color === 'ink' ? '#1565d8' : color) : '#1565d8',
-      alpha: fill ? 0.22 : 0.06,
+      fill: isFilled ? (color === 'ink' ? '#1565d8' : color) : false,
+      alpha: isFilled ? 0.22 : 0,
       size: size || 2,
       dash: dash
     };
@@ -4808,8 +4825,15 @@ function smartFinishPolygon(closed = true) {
   }
   // Đoạn thẳng đơn hoặc chuỗi đoạn thẳng (đường gấp khúc / phân giác / đường cao)
   else {
+    const snap = smartDraw.snap;
+    let gid = null;
+    if (snap && (snap.type === 'bisector_cut' || snap.type === 'bisector_ray' || snap.type === 'altitude_cut' || snap.type === 'perp')) {
+      gid = 'grp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    }
+
+    const addedLines = [];
     for (let i = 0; i < pts.length - 1; i++) {
-      objs.push({
+      const lineObj = {
         type: 'line',
         x1: +pts[i][0].toFixed(2),
         y1: +pts[i][1].toFixed(2),
@@ -4818,18 +4842,20 @@ function smartFinishPolygon(closed = true) {
         color: color || 'ink',
         size: size || 2,
         dash: dash
-      });
+      };
+      if (gid) lineObj.groupId = gid;
+      objs.push(lineObj);
+      addedLines.push(lineObj);
     }
 
-    // Nếu vẽ tia phân giác: tự động thêm 2 vòng cung lệch nhau theo chuẩn SGK để lưu vào hình vẽ!
-    const snap = smartDraw.snap;
+    // Nếu vẽ tia phân giác: tự động thêm 2 vòng cung lệch nhau theo chuẩn SGK để lưu vào hình vẽ và nhóm lại cùng nhau!
     if (snap && (snap.type === 'bisector_cut' || snap.type === 'bisector_ray') && snap.basePt && snap.ray1 && snap.ray2) {
-      smartAddAngleBisectorArcs(snap.basePt, snap.ray1.ang, snap.ray2.ang, color || 'ink', Math.max(1, (size || 2) * 0.7));
+      smartAddAngleBisectorArcs(snap.basePt, snap.ray1.ang, snap.ray2.ang, color || 'ink', Math.max(1, (size || 2) * 0.7), gid);
     }
-    // Nếu vẽ đường cao: tự động thêm ký hiệu góc vuông ⟂ tại chân đường cao!
+    // Nếu vẽ đường cao: tự động thêm ký hiệu góc vuông ⟂ tại chân đường cao và nhóm lại!
     else if (snap && (snap.type === 'altitude_cut' || snap.type === 'perp') && snap.basePt) {
       const targetP = snap.type === 'altitude_cut' ? snap.pt : snap.basePt;
-      smartAddRightAngleSymbol(snap.basePt, targetP, color || 'ink', Math.max(1, (size || 2) * 0.7));
+      smartAddRightAngleSymbol(snap.basePt, targetP, color || 'ink', Math.max(1, (size || 2) * 0.7), gid);
     }
 
     commit();
@@ -7275,7 +7301,8 @@ popBtn(G3,'<b style="font:700 15px Consolas,monospace">&lt;/&gt;</b>','Tin học
 const moreB=popBtn(G3,pa('M4 20V10M10 20V4M16 20v-7M22 20H2M17 4c2 0 3 1.5 3 3'),'Chèn thêm: bảng, biểu đồ, hoá học, con dấu, ghi chú, chú thích, hình dụng cụ, gọi tên, đồng hồ','popMore');
 
 const SHP=[['rect','Hình chữ nhật (R)',pa('M4 6h16v12H4z')],['ellipse','Elip, đường tròn (O)',svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>')],['tri','Tam giác (I)',pa('M12 4l9 16H3z')],['arrow','Mũi tên (A)',pa('M5 19L19 5M10 5h9v9')],['smartpoly','Vẽ hình bắt điểm động (Efofex)',svg('<path d="M4 19L12 5l8 14H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="4" cy="19" r="2" fill="currentColor"/><circle cx="20" cy="19" r="2" fill="currentColor"/><path d="M10 19v-4h4" fill="none" stroke="currentColor" stroke-width="1.2"/>')],['cutter','✂ Dao cắt hình (vẽ đường cắt ngang qua bất kỳ hình nào)',svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2.2"/>')]];
-for(const[t,l,ic]of SHP)toolBtns[t]=mkBtn($('#shapeGrid'),ic,l,()=>{setTool(t);closePops()});
+const shapeSubBtns={};
+for(const[t,l,ic]of SHP){const b=mkBtn($('#shapeGrid'),ic,l,()=>{setTool(t);closePops()});shapeSubBtns[t]=b;if(!toolBtns[t])toolBtns[t]=b;}
 $('#fillChk').addEventListener('change',e=>{fill=e.target.checked;let ch=false;for(const o of sel)if('x1' in o){o.fill=fill;ch=true}if(ch)commit()});
 
 $('#custom').addEventListener('input',e=>setColor(e.target.value));
@@ -7339,7 +7366,8 @@ $('#size').addEventListener('input',e=>{size=+e.target.value;if(tool==='hl')hlSi
 $('#size').addEventListener('change',()=>{if(sel.size)commit();else save()});
 function syncUI(){
   for(const k in toolBtns)toolBtns[k].setAttribute('aria-pressed',k===tool);
-  shapeB.setAttribute('aria-pressed',['rect','ellipse','tri','arrow','cutter','smartpoly'].includes(tool));
+  for(const k in shapeSubBtns)shapeSubBtns[k].setAttribute('aria-pressed',k===tool);
+  shapeB.setAttribute('aria-pressed',['rect','ellipse','tri','arrow','cutter'].includes(tool));
   for(const k in instBtns)instBtns[k].setAttribute('aria-pressed',inst[k].on);
   instB.setAttribute('aria-pressed',inst.ruler.on||inst.pro.on||inst.comp.on);
   dashB.setAttribute('aria-pressed',dash);
@@ -7561,7 +7589,7 @@ function syncPens(){
 /* thanh thao tác cho đối tượng đang chọn */
 const SB=$('#selBar');
 function delSel(){const all=[...sel],d=all.filter(o=>!o.lock&&!o.pin),kept=all.filter(o=>o.pin).length;sel.clear();if(kept)setTimeout(()=>toast(kept+' đối tượng đang khoá nên không xoá. Chọn rồi bấm 🔓 để mở khoá trước.'),0);if(!d.length){requestDraw();return}objs=objs.filter(o=>!d.includes(o));baseC=null;commit();toast(d.length>1?'Đã xoá '+d.length+' đối tượng.':'Đã xoá.',UNDO_ACT)}
-function dupSel(){if(!sel.size)return;const n=[...sel].map(o=>{const c=clone(o);delete c.pin;moveObj(c,20,20);return c});objs.push(...n);sel=new Set(n);baseC=null;commit()}
+function dupSel(){if(!sel.size)return;const gidMap=new Map();const n=[...sel].map(o=>{const c=clone(o);delete c.pin;if(c.groupId){if(!gidMap.has(c.groupId))gidMap.set(c.groupId,'grp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));c.groupId=gidMap.get(c.groupId);}moveObj(c,20,20);return c});objs.push(...n);sel=new Set(n);baseC=null;commit()}
 function editObj(o){
   if(o.type==='robot')openRobot(o);else if(o.type==='code')openCode(o);else if(o.type==='flow')openFlow(o);else if(o.type==='nbase')openNbase(o);else if(o.type==='gates'||(o.type==='table'&&o.gen==='truth'))openLogic(o);
   else if(o.type==='sheet')openSheet(o);else if(o.type==='algo')openAlgo(o);else if(o.type==='scratch')openScratch(o);else if(o.type==='erd')openSql();
@@ -7898,8 +7926,30 @@ $('#mxStamp').onclick=()=>{for(const b of stGrid.children)b._draw();togglePop('p
 $('#mxClip').onclick=openClips;$('#mxPick').onclick=openPicker;$('#mxTimer').onclick=()=>togglePop('popTimer',insAnchor());
 if($('#mxCutPaste'))$('#mxCutPaste').onclick=openCutDlg;
 $('#mxCallout').onclick=()=>{closePops();setTool('callout');toast('Kéo từ chi tiết cần chỉ tới chỗ muốn đặt chữ, rồi gõ nhãn.')};
+function groupSel(){
+  const L=[...sel];
+  if(L.length<2){toast('Chọn từ 2 đối tượng trở lên để nhóm.');return}
+  const gid='grp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  for(const o of L)o.groupId=gid;
+  commit();
+  placeSelBar();requestDraw();
+  toast('Đã nhóm '+L.length+' đối tượng (Ctrl+G).');
+}
+
+function ungroupSel(){
+  const L=[...sel];
+  let cnt=0;
+  for(const o of L){if(o.groupId){delete o.groupId;cnt++;}}
+  if(!cnt){toast('Các đối tượng đang chọn chưa thuộc nhóm nào.');return}
+  commit();
+  placeSelBar();requestDraw();
+  toast('Đã rã nhóm '+cnt+' đối tượng (Ctrl+Shift+G).');
+}
+
 /* thêm nút vào thanh thao tác khi chọn */
 Object.assign(sbBtn,{
+  group:mkBtn(SB,svg('<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M11 7h4a2 2 0 012 2v4M7 11v4a2 2 0 002 2h4" stroke-dasharray="2 2"/>'),'Nhóm các đối tượng lại để tiện di chuyển (Ctrl+G)',groupSel),
+  ungroup:mkBtn(SB,svg('<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M14 6l4-3M18 3v3M18 3h-3M10 18l-4 3M6 21v-3M6 21h3"/>'),'Rã nhóm đối tượng (Ctrl+Shift+G)',ungroupSel),
   rot:mkBtn(SB,pa('M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'),'Xoay ảnh 90°',rotSel),
   crop:mkBtn(SB,pa('M6 2v16h16M2 6h16v16'),'Cắt ảnh',()=>{const o=[...sel][0];if(o)openCrop(o)}),
   bold:mkBtn(SB,'<b style="font:800 22px serif">B</b>','Chữ đậm',()=>styleSel('b')),
@@ -7916,6 +7966,8 @@ Object.assign(sbBtn,{
 function syncSelExtra(){const L=[...sel],one=L.length===1&&L[0],img=one&&one.type==='image'&&!one.lock,txt=L.length&&L.every(o=>o.type==='text'||o.type==='note'||o.type==='callout');
   const piece=L.some(o=>o.type==='piece');
   const cuttable=one&&(typeof cgCanSlice==='function'?cgCanSlice(one):(one.type==='tri'||one.type==='rect'||one.type==='piece'));
+  sbBtn.group.hidden=!(L.length>=2);
+  sbBtn.ungroup.hidden=!L.some(o=>!!o.groupId);
   sbBtn.rot.hidden=!L.some(o=>o.type==='image'&&!o.lock);sbBtn.crop.hidden=!img;sbBtn.bold.hidden=sbBtn.ital.hidden=!txt;sbBtn.tbg.hidden=!(txt&&L.some(o=>o.type==='text'));
   sbBtn.cutAng.hidden=!cuttable;sbBtn.slice.hidden=!cuttable;sbBtn.rot45.hidden=!piece;sbBtn.rot90.hidden=!piece;sbBtn.flip.hidden=!piece;sbBtn.flipV.hidden=!piece;}
 /* thư viện hình ToanViet theo từng nhóm */
@@ -9551,7 +9603,8 @@ addEventListener('keydown',e=>{
   if(mod&&k==='a'){e.preventDefault();setTool('select');objs.forEach(o=>{if(!o.lock)sel.add(o)});requestDraw();return}
   if(mod&&k==='c'){copySel();return}
   if(mod&&k==='x'){copySel();if(sel.size)delSel();return}
-  if(mod&&k==='d'){e.preventDefault();if(!sel.size)return;const n=[...sel].map(o=>{const c=clone(o);delete c.pin;moveObj(c,20,20);return c});objs.push(...n);sel=new Set(n);commit();return}
+  if(mod&&k==='d'){e.preventDefault();dupSel();return}
+  if(mod&&k==='g'){e.preventDefault();if(e.shiftKey)ungroupSel();else groupSel();return}
   if(mod)return;
   if(e.key==='Delete'||e.key==='Backspace'){if(sel.size)delSel();e.preventDefault();return}
   if(e.key==='Escape'&&PRES){setPresent(false);return}
