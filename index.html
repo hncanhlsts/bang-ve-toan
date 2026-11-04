@@ -2857,6 +2857,76 @@ function geoSolve(o){
 }
 const geoNum=v=>String(Math.round(v*10)/10).replace('.',',');
 const angDeg=(a,v,b)=>{const u=V2.sub(a,v),w=V2.sub(b,v);return Math.abs(Math.atan2(V2.cr(u,w),V2.dot(u,w)))*180/Math.PI};
+
+/* Tự động tính toán vị trí đặt tên điểm hướng ra phía NGOÀI của hình vẽ, tránh rơi vào miền trong */
+function geoLabelPos(e,o,V,sc){
+  const g=V.get(e.id);if(!g||!g.P)return{x:0,y:0,align:'left',base:'bottom'};
+  const P=g.P;
+  if(e.lDir){
+    const[dx,dy]=e.lDir;
+    const align=dx>0.25?'left':(dx<-0.25?'right':'center');
+    const base=dy>0.25?'top':(dy<-0.25?'bottom':'middle');
+    return{x:P[0]+(dx>0.25?7:(dx<-0.25?-7:0))/sc,y:P[1]+(dy>0.25?5:(dy<-0.25?-5:0))/sc,align,base};
+  }
+  let cx=0,cy=0,count=0;
+  for(const el of o.els){const gEl=V.get(el.id);if(gEl&&gEl.P){cx+=gEl.P[0];cy+=gEl.P[1];count++}}
+  const centroid=count>1?[cx/count,cy/count]:[P[0]-100,P[1]+100];
+  const neighbors=[];
+  for(const el of o.els){
+    if(el.hidden)continue;
+    if(el.a===e.id&&el.b){const gB=V.get(el.b);if(gB&&gB.P&&!neighbors.includes(gB.P))neighbors.push(gB.P)}
+    else if(el.b===e.id&&el.a){const gA=V.get(el.a);if(gA&&gA.P&&!neighbors.includes(gA.P))neighbors.push(gA.P)}
+    if(el.pts&&el.pts.includes(e.id)){
+      const idx=el.pts.indexOf(e.id);
+      const gPrev=V.get(el.pts[(idx-1+el.pts.length)%el.pts.length]),gNext=V.get(el.pts[(idx+1)%el.pts.length]);
+      if(gPrev&&gPrev.P&&!neighbors.includes(gPrev.P))neighbors.push(gPrev.P);
+      if(gNext&&gNext.P&&!neighbors.includes(gNext.P))neighbors.push(gNext.P);
+    }
+  }
+  let dir=null;
+  // Điểm nằm trên đường (pon) hoặc trung điểm (mid)
+  if(e.t==='pon'||(e.t==='mid'&&neighbors.length===0)){
+    let segLine=null;
+    if(e.on){const gParent=V.get(e.on);if(gParent&&gParent.L)segLine=gParent.L}
+    if(!segLine){
+      for(const el of o.els){const gL=V.get(el.id);if(gL&&gL.L){
+        const d=distSeg(P[0],P[1],gL.L.p[0],gL.L.p[1],gL.L.q[0],gL.L.q[1]);
+        if(d<1e-3){segLine=gL.L;break}}}
+    }
+    if(segLine){
+      const t=V2.sub(segLine.q,segLine.p),len=V2.len(t);
+      if(len>1e-6){
+        const n1=[-t[1]/len,t[0]/len];
+        const toOut=V2.sub(P,centroid);
+        dir=V2.dot(n1,toOut)>=0?n1:[-n1[0],-n1[1]];
+      }
+    }
+  }
+  // Đỉnh có từ 2 cạnh kề trở lên
+  if(!dir&&neighbors.length>=2){
+    let sumU=[0,0];
+    for(const q of neighbors){const v=V2.sub(q,P),len=V2.len(v);if(len>1e-6){sumU[0]+=v[0]/len;sumU[1]+=v[1]/len}}
+    const lenSum=V2.len(sumU);
+    if(lenSum>0.15){dir=[-sumU[0]/lenSum,-sumU[1]/lenSum]}
+    else{
+      const v=V2.sub(neighbors[0],P),len=V2.len(v);
+      if(len>1e-6){const n1=[-v[1]/len,v[0]/len],toOut=V2.sub(P,centroid);dir=V2.dot(n1,toOut)>=0?n1:[-n1[0],-n1[1]]}
+    }
+  }else if(!dir&&neighbors.length===1){
+    const v=V2.sub(P,neighbors[0]),len=V2.len(v);if(len>1e-6)dir=[v[0]/len,v[1]/len];
+  }
+  if(!dir){
+    const toOut=V2.sub(P,centroid),len=V2.len(toOut);
+    dir=len>1e-4?[toOut[0]/len,toOut[1]/len]:[0.707,-0.707];
+  }
+  const dx=dir[0],dy=dir[1];
+  const align=dx>0.25?'left':(dx<-0.25?'right':'center');
+  const base=dy>0.25?'top':(dy<-0.25?'bottom':'middle');
+  const ox=(dx>0.25?7:(dx<-0.25?-7:0))/sc;
+  const oy=(dy>0.25?5:(dy<-0.25?-5:0))/sc;
+  return{x:P[0]+ox,y:P[1]+oy,align,base};
+}
+
 /* vẽ trong toạ độ khung gốc; hl: các phần tử đang được chọn trong hộp thoại */
 function drawGeoEls(c,o,V,hl,sc=1){
   const ink=res(o.color||'ink'),acc=theme.accent,lw=1.8/sc;c.save();c.lineCap='round';c.lineJoin='round';
@@ -2877,7 +2947,10 @@ function drawGeoEls(c,o,V,hl,sc=1){
   }
   for(const e of o.els){const g=V.get(e.id);if(!g||!g.P||e.hidden)continue;const[x,y]=g.P,free=geoDraggable(e),on=hl&&hl.has(e.id);
     c.beginPath();c.arc(x,y,(on?5.5:free?4.2:3.4)/sc,0,7);c.fillStyle=on?acc:free?'#1565d8':ink;c.fill();c.lineWidth=1.2/sc;c.strokeStyle=theme.paper;c.stroke();
-    if(e.name){c.fillStyle=ink;c.font='italic '+(18/sc)+'px "Times New Roman",serif';c.textAlign='left';c.textBaseline='bottom';c.fillText(e.name,x+5/sc,y-4/sc)}}
+    if(e.name){
+      const lp=geoLabelPos(e,o,V,sc);
+      c.fillStyle=ink;c.font='italic '+(18/sc)+'px "Times New Roman",serif';
+      c.textAlign=lp.align;c.textBaseline=lp.base;c.fillText(e.name,lp.x,lp.y)}}
   c.restore();
 }
 function drawGeo(c,o){const k=o.w/o.bw,ky=o.h/o.bh;c.save();c.translate(o.x,o.y);c.scale(k,ky);drawGeoEls(c,o,geoSolve(o),null,1);c.restore()}
@@ -2904,7 +2977,7 @@ function geoGrab(p){
 function geoDragTo(d,p){const o=d.o,k=o.w/o.bw;geoMovePt(o,geoSolve(o),d.e,[(p.x-o.x)/k,(p.y-o.y)*o.bh/o.h]);d.moved=true}
 
 /* hộp thoại dựng hình */
-const GTOOLS=[['move','Kéo điểm','Kéo các điểm màu xanh để thay đổi hình.'],['pt','Điểm','Bấm vào chỗ trống để đặt điểm; bấm lên đường thẳng, đường tròn để đặt điểm nằm trên đó.'],
+const GTOOLS=[['move','Kéo điểm','Kéo các điểm màu xanh để thay đổi hình.'],['pt','Điểm','Bấm vào chỗ trống để đặt điểm; bấm lên đường thẳng, tròn để đặt điểm trên đó. Bấm vào điểm đã có để đổi hướng đặt tên.'],
   ['seg','Đoạn thẳng','Chọn hai điểm (bấm chỗ trống để tạo điểm mới).'],['line','Đường thẳng','Chọn hai điểm.'],['ray','Tia','Chọn gốc rồi một điểm trên tia.'],
   ['circ','Đường tròn','Chọn tâm rồi một điểm trên đường tròn.'],['mid','Trung điểm','Chọn hai điểm (hoặc bấm một đoạn thẳng).'],['int','Giao điểm','Chọn hai đường (thẳng hoặc tròn).'],
   ['perp','Vuông góc','Chọn một đường thẳng và một điểm: dựng đường qua điểm, vuông góc với đường đã chọn.'],['par','Song song','Chọn một đường thẳng và một điểm: dựng đường qua điểm, song song với đường đã chọn.'],
@@ -2939,7 +3012,17 @@ function geoClick(P){
   const two=(t,mk)=>{gPick.push(geoPointAt(P,geoSolve(gD),tol));if(gPick.length===2){if(gPick[0]!==gPick[1])geoAdd(mk(gPick[0],gPick[1]));gPick=[]}};
   geoSnap();
   switch(gTool){
-    case'pt':geoPointAt(P,V,tol);break;
+    case'pt':{
+      const pe=geoHit(gD,V,P,tol,(e,g)=>!!g.P);
+      if(pe){
+        const dirs=[null,[-1,0],[0,-1],[1,0],[0,1],[-0.7,-0.7],[0.7,-0.7],[-0.7,0.7],[0.7,0.7]];
+        let idx=dirs.findIndex(d=>(!d&&!pe.lDir)||(d&&pe.lDir&&Math.abs(d[0]-pe.lDir[0])<0.1&&Math.abs(d[1]-pe.lDir[1])<0.1));
+        pe.lDir=dirs[(idx+1)%dirs.length];
+        toast(pe.lDir?'Đã đổi vị trí tên điểm '+pe.name:'Tên điểm '+pe.name+': Tự động ngoài hình');
+        break;
+      }
+      geoPointAt(P,V,tol);break;
+    }
     case'seg':case'line':case'ray':two(gTool,(a,b)=>({t:gTool,a,b}));break;
     case'circ':two('circ',(c,p)=>({t:'circ',c,p}));break;
     case'mid':{const s=gPick.length?null:geoHit(gD,V,P,tol,(e,g)=>e.t==='seg'&&!geoHit(gD,V,P,tol,ptF));if(s){geoAdd({t:'mid',a:s.a,b:s.b,name:geoName(gD)});break}
@@ -2974,6 +3057,18 @@ gCv().addEventListener('pointerdown',e=>{
 });
 gCv().addEventListener('pointermove',e=>{if(!gDrag)return;geoMovePt(gD,geoSolve(gD),gDrag,geoLocal(e));geoPaint()});
 gCv().addEventListener('pointerup',()=>{gDrag=null});
+gCv().addEventListener('dblclick',e=>{
+  const P=geoLocal(e),V=geoSolve(gD),tol=14/geoView().k;
+  const pe=geoHit(gD,V,P,tol,(x,g)=>!!g.P);
+  if(pe){
+    e.preventDefault();geoSnap();
+    const dirs=[null,[-1,0],[0,-1],[1,0],[0,1],[-0.7,-0.7],[0.7,-0.7],[-0.7,0.7],[0.7,0.7]];
+    let idx=dirs.findIndex(d=>(!d&&!pe.lDir)||(d&&pe.lDir&&Math.abs(d[0]-pe.lDir[0])<0.1&&Math.abs(d[1]-pe.lDir[1])<0.1));
+    pe.lDir=dirs[(idx+1)%dirs.length];
+    geoPaint();
+    toast(pe.lDir?'Đã đổi vị trí tên điểm '+pe.name:'Tên điểm '+pe.name+': Tự động ngoài hình');
+  }
+});
 $('#geoUndo').onclick=()=>{if(gUndo.length){gD.els=JSON.parse(gUndo.pop());gPick=[];geoPaint()}};
 $('#geoClear').onclick=()=>{geoSnap();gD.els=[];gPick=[];geoPaint()};
 $('#geoLen').addEventListener('change',e=>{gD.showLen=e.target.checked;geoPaint()});
