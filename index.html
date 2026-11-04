@@ -1932,6 +1932,7 @@ function draw(){
   if(drag&&drag.type==='marquee'){const{a,b}=drag;ctx.strokeStyle=theme.accent;ctx.lineWidth=1/view.s;ctx.globalAlpha=.12;ctx.fillStyle=theme.accent;
     ctx.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.globalAlpha=1;ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y)}
   drawOverlays(ctx);
+  if(typeof drawSmartHUD==='function')drawSmartHUD(ctx,view.s);
   if(!te.hidden)placeTe();
   placeUfBar();placeGpBar();placeSelBar();placeGatesBar();placeStBar();
   const pct=Math.round(view.s*100)+'%';$('#zoomBtn').textContent=fitMode?'Vừa khổ ('+pct+')':pct;
@@ -2080,6 +2081,22 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===1||tool==='pan'||spaceDown||(penOnly&&e.pointerType==='touch'&&tool!=='select')){drag={type:'pan',sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y};cv.style.cursor='grabbing';return}
   if(e.button!==0&&role!=='draw')return;
   const p=toWorld(e);
+  if(tool==='smartpoly'){
+    const baseP=smartDraw.pts.length?smartDraw.pts[smartDraw.pts.length-1]:null;
+    const snap=smartSnap(p,baseP,smartDraw.pts);
+    const target=snap?snap.pt:[p.x,p.y];
+    if(smartDraw.pts.length>=2&&((snap&&snap.type==='close')||Math.hypot(p.x-smartDraw.pts[0][0],p.y-smartDraw.pts[0][1])<18/view.s)){
+      smartFinishPolygon(true);
+      return;
+    }
+    smartDraw.pts.push(target);
+    smartDraw.curP=p;
+    smartDraw.downP=p;
+    smartDraw.moved=false;
+    drag={type:'smartpoly',startP:target};
+    requestDraw();
+    return;
+  }
   if(tool==='cutter'||(typeof cgSlicing!=='undefined'&&cgSlicing)){drag={type:'slice',p1:p,p2:p};requestDraw();return}
   const hd=instDown(p);if(hd){drag=hd;requestDraw();return}
   /* áp lòng bàn tay khi đang viết, vẽ: lau bảng */
@@ -2136,9 +2153,17 @@ cv.addEventListener('pointermove',e=>{
       pinch={d,mx,my};requestDraw();return;
     }
   }
+  const p=toWorld(e);
+  if(tool==='smartpoly'){
+    smartDraw.curP=p;
+    const baseP=smartDraw.pts.length?smartDraw.pts[smartDraw.pts.length-1]:null;
+    smartDraw.snap=smartSnap(p,baseP,smartDraw.pts);
+    if(drag&&drag.type==='smartpoly')smartDraw.moved=true;
+    requestDraw();
+    if(!drag)return;
+  }
   if(!drag)return;
   if(drag.type==='laser'||drag.type==='curtain'){presMove(e);return}
-  const p=toWorld(e);
   if(drag.type==='slice'){drag.p2=p;requestDraw();return}
   else if(drag.type==='rotPiece'){
     const o=drag.o;
@@ -2196,6 +2221,23 @@ function endPointer(e){
   /* lau bằng nhiều điểm: chỉ xong khi nhấc hết tay */
   if(drag.group&&pointers.size){return}
   const d=drag;drag=null;
+  if(d.type==='smartpoly'){
+    const p=toWorld(e);
+    if(smartDraw.moved&&smartDraw.downP&&Math.hypot(p.x-smartDraw.downP.x,p.y-smartDraw.downP.y)>14/view.s){
+      const snap=smartDraw.snap;
+      const target=snap?snap.pt:[p.x,p.y];
+      if(smartDraw.pts.length>=3&&snap&&snap.type==='close'){
+        smartFinishPolygon(true);
+        return;
+      }
+      const lastP=smartDraw.pts[smartDraw.pts.length-1];
+      if(Math.hypot(target[0]-lastP[0],target[1]-lastP[1])>10/view.s){
+        smartDraw.pts.push(target);
+      }
+    }
+    requestDraw();
+    return;
+  }
   if(d.type==='laser'){laser.cur=null;requestDraw();return}
   if(d.type==='slice'){cgApplySlice(d.p1,d.p2);if(tool==='cutter')setTool('select');requestDraw();return}
   if(d.type==='rotPiece'){cgSnapPiece(d.o);commit();requestDraw();return}
@@ -2219,6 +2261,7 @@ function endPointer(e){
 }
 cv.addEventListener('pointerup',endPointer);cv.addEventListener('pointercancel',endPointer);
 cv.addEventListener('dblclick',e=>{
+  if(tool==='smartpoly'){smartFinishPolygon(smartDraw.pts.length>=3);return}
   if(tool!=='select')return;
   const rh=tvRotHandle(),pw=toWorld(e);
   if(rh&&Math.hypot(pw.x-rh.x,pw.y-rh.y)<14/view.s){
@@ -4283,6 +4326,548 @@ function initCutDlg() {
 initCutDlg();
 if ($('#shapeCutPaste')) $('#shapeCutPaste').onclick = openCutDlg;
 
+/* ---------- 15d-bat-diem-hinh-hoc.js: Công cụ vẽ hình bắt điểm động kiểu Efofex FX Draw ---------- */
+/* Cho phép vẽ liên hoàn đa giác/tam giác: vẽ cạnh 1 -> bẻ góc cạnh 2 -> nối về điểm đầu khép kín tam giác.
+   Hệ thống suy luận hình học thời gian thực: trung điểm, vuông góc 90°, song song, phân giác, bằng độ dài, góc đặc biệt. */
+
+let smartDraw = {
+  pts: [],          // mảng các đỉnh đã chốt [[x, y], ...]
+  curP: null,       // toạ độ con trỏ chuột hiện thời {x, y}
+  snap: null,       // thông tin điểm bắt được hiện tại
+  downP: null,      // toạ độ khi nhấn chuột xuống
+  moved: false
+};
+
+/* Thu thập tất cả các đoạn thẳng và đỉnh có trên bảng vẽ */
+function smartCollectGeometry() {
+  const segs = [];
+  const pts = [];
+
+  const addPt = (p, name) => {
+    if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
+    if (!pts.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-3)) pts.push([p[0], p[1], name || '']);
+  };
+
+  const addSeg = (p1, p2) => {
+    if (!p1 || !p2) return;
+    const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+    if (len < 1e-2) return;
+    addPt(p1); addPt(p2);
+    segs.push({ p1: [p1[0], p1[1]], p2: [p2[0], p2[1]], len, ang: Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) });
+  };
+
+  // 1. Từ các hình trên bảng
+  for (const o of objs) {
+    if (o.hidden) continue;
+    if (o.type === 'line' || o.type === 'arrow') {
+      addSeg([o.x1, o.y1], [o.x2, o.y2]);
+    } else if (o.type === 'rect') {
+      const b = bbox(o);
+      const tl = [b.x, b.y], tr = [b.x + b.w, b.y], br = [b.x + b.w, b.y + b.h], bl = [b.x, b.y + b.h];
+      addSeg(tl, tr); addSeg(tr, br); addSeg(br, bl); addSeg(bl, tl);
+    } else if (o.type === 'tri') {
+      const t = triPts(o);
+      addSeg(t[0], t[1]); addSeg(t[1], t[2]); addSeg(t[2], t[0]);
+    } else if (o.type === 'piece' && o.pts && o.pts.length >= 2) {
+      for (let i = 0; i < o.pts.length; i++) {
+        addSeg(o.pts[i], o.pts[(i + 1) % o.pts.length]);
+      }
+    } else if (o.type === 'geo') {
+      const V = geoSolve(o);
+      for (const e of o.els) {
+        const g = V.get(e.id);
+        if (g && g.P) addPt(g.P, e.name);
+        if (g && g.L) addSeg(g.L.p, g.L.q);
+      }
+    }
+  }
+
+  // 2. Từ các cạnh đang vẽ dở trong smartDraw
+  if (smartDraw.pts.length >= 2) {
+    for (let i = 0; i < smartDraw.pts.length - 1; i++) {
+      addSeg(smartDraw.pts[i], smartDraw.pts[i + 1]);
+    }
+  }
+
+  return { segs, pts };
+}
+
+/* Tính sai khác nhỏ nhất giữa 2 góc (-PI .. PI) */
+function smartAngDiff(a, b) {
+  let d = (a - b) % (2 * Math.PI);
+  while (d <= -Math.PI) d += 2 * Math.PI;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  return d;
+}
+
+/* Bộ suy luận bắt điểm động (Efofex-style Dynamic Snapping) */
+function smartSnap(rawP, baseP, currentPts) {
+  const p = { x: rawP.x, y: rawP.y };
+  const tol = 16 / view.s;
+  const angTol = 0.065; // ~3.7 độ
+
+  // 1. ƯU TIÊN 1: Khép kín hình về đỉnh đầu tiên
+  if (currentPts && currentPts.length >= 2) {
+    const p0 = currentPts[0];
+    const d0 = Math.hypot(p.x - p0[0], p.y - p0[1]);
+    if (d0 < tol * 1.4) {
+      return {
+        type: 'close',
+        pt: [p0[0], p0[1]],
+        label: currentPts.length === 2 ? 'Khép kín tam giác' : 'Khép kín đa giác',
+        color: '#10b981'
+      };
+    }
+  }
+
+  const { segs, pts } = smartCollectGeometry();
+
+  // 2. ƯU TIÊN 2: Bắt vào đỉnh / điểm mút có sẵn
+  let bestPt = null, bestPtDist = tol;
+  for (const q of pts) {
+    const d = Math.hypot(p.x - q[0], p.y - q[1]);
+    if (d < bestPtDist) {
+      bestPtDist = d;
+      bestPt = q;
+    }
+  }
+  if (bestPt) {
+    return {
+      type: 'vertex',
+      pt: [bestPt[0], bestPt[1]],
+      label: bestPt[2] ? ('Điểm ' + bestPt[2]) : 'Đỉnh',
+      color: '#2563eb'
+    };
+  }
+
+  // 3. ƯU TIÊN 3: Bắt trung điểm (Midpoint Snap)
+  let bestMid = null, bestMidDist = tol, bestMidSeg = null;
+  for (const s of segs) {
+    const mx = (s.p1[0] + s.p2[0]) / 2, my = (s.p1[1] + s.p2[1]) / 2;
+    const d = Math.hypot(p.x - mx, p.y - my);
+    if (d < bestMidDist) {
+      bestMidDist = d;
+      bestMid = [mx, my];
+      bestMidSeg = s;
+    }
+  }
+  if (bestMid) {
+    return {
+      type: 'midpoint',
+      pt: bestMid,
+      seg: bestMidSeg,
+      label: 'Trung điểm M',
+      color: '#f59e0b'
+    };
+  }
+
+  // Nếu chưa có đỉnh gốc để kéo cạnh tiếp theo: chỉ bắt điểm tĩnh
+  if (!baseP) return null;
+
+  // Tính vector từ đỉnh gốc đến con trỏ
+  const vx = p.x - baseP[0], vy = p.y - baseP[1];
+  const len = Math.hypot(vx, vy);
+  if (len < 12 / view.s) return null;
+
+  const curAng = Math.atan2(vy, vx);
+
+  // 4. ƯU TIÊN 4: Bắt vuông góc 90° (Perpendicular Snap)
+  // Ưu tiên vuông góc với cạnh liền trước trong chuỗi đa giác đang vẽ
+  let bestPerp = null, bestPerpDiff = angTol;
+  const candidateSegs = [];
+  if (currentPts && currentPts.length >= 2) {
+    const prevPt = currentPts[currentPts.length - 2];
+    candidateSegs.push({ p1: prevPt, p2: baseP, ang: Math.atan2(baseP[1] - prevPt[1], baseP[0] - prevPt[0]), isPrev: true });
+  }
+  for (const s of segs) if (!candidateSegs.some(cs => Math.hypot(cs.p1[0]-s.p1[0], cs.p1[1]-s.p1[1]) < 1e-2 && Math.hypot(cs.p2[0]-s.p2[0], cs.p2[1]-s.p2[1]) < 1e-2)) candidateSegs.push(s);
+
+  for (const s of candidateSegs) {
+    const perp1 = s.ang + Math.PI / 2;
+    const perp2 = s.ang - Math.PI / 2;
+    const diff1 = Math.abs(smartAngDiff(curAng, perp1));
+    const diff2 = Math.abs(smartAngDiff(curAng, perp2));
+    const minDiff = Math.min(diff1, diff2);
+    const targetAng = diff1 < diff2 ? perp1 : perp2;
+
+    const weight = s.isPrev ? 0.015 : 0; // ưu tiên cạnh kề
+    if (minDiff - weight < bestPerpDiff) {
+      bestPerpDiff = minDiff - weight;
+      const snapLen = len;
+      bestPerp = {
+        type: 'perp',
+        pt: [baseP[0] + snapLen * Math.cos(targetAng), baseP[1] + snapLen * Math.sin(targetAng)],
+        refSeg: s,
+        basePt: baseP,
+        label: 'Vuông góc 90°',
+        color: '#e11d48'
+      };
+    }
+  }
+
+  // 5. ƯU TIÊN 5: Bắt song song (Parallel Snap ∥)
+  let bestPara = null, bestParaDiff = angTol;
+  for (const s of segs) {
+    if (s.isPrev) continue;
+    const diff1 = Math.abs(smartAngDiff(curAng, s.ang));
+    const diff2 = Math.abs(smartAngDiff(curAng, s.ang + Math.PI));
+    const minDiff = Math.min(diff1, diff2);
+    const targetAng = diff1 < diff2 ? s.ang : s.ang + Math.PI;
+    if (minDiff < bestParaDiff) {
+      bestParaDiff = minDiff;
+      bestPara = {
+        type: 'parallel',
+        pt: [baseP[0] + len * Math.cos(targetAng), baseP[1] + len * Math.sin(targetAng)],
+        refSeg: s,
+        basePt: baseP,
+        label: 'Song song ∥',
+        color: '#7c3aed'
+      };
+    }
+  }
+
+  // 6. ƯU TIÊN 6: Bắt phân giác (Angle Bisector)
+  let bestBis = null;
+  if (currentPts && currentPts.length >= 2) {
+    const prevPt = currentPts[currentPts.length - 2];
+    const inAng = Math.atan2(prevPt[1] - baseP[1], prevPt[0] - baseP[0]); // hướng ngược lại từ đỉnh
+    // Góc giữa inAng và curAng
+    const dAng = smartAngDiff(curAng, inAng);
+    // Tia đối hoặc tia phân giác ngoài/trong
+    const bisAng1 = inAng + Math.PI / 2;
+    const bisAng2 = inAng - Math.PI / 2;
+    const diffB1 = Math.abs(smartAngDiff(curAng, bisAng1));
+    const diffB2 = Math.abs(smartAngDiff(curAng, bisAng2));
+    const minDiffB = Math.min(diffB1, diffB2);
+    if (minDiffB < angTol) {
+      const targetBis = diffB1 < diffB2 ? bisAng1 : bisAng2;
+      bestBis = {
+        type: 'bisector',
+        pt: [baseP[0] + len * Math.cos(targetBis), baseP[1] + len * Math.sin(targetBis)],
+        basePt: baseP,
+        label: 'Phân giác',
+        color: '#0ea5e9'
+      };
+    }
+  }
+
+  // 7. ƯU TIÊN 7: Bắt bằng độ dài với cạnh trước (Equal Length)
+  let snapPt = bestPerp ? bestPerp.pt : (bestPara ? bestPara.pt : (bestBis ? bestBis.pt : [p.x, p.y]));
+  let hasAngleSnap = !!(bestPerp || bestPara || bestBis);
+  let activeSnap = bestPerp || bestPara || bestBis;
+
+  if (currentPts && currentPts.length >= 2) {
+    const prevPt = currentPts[currentPts.length - 2];
+    const prevLen = Math.hypot(baseP[0] - prevPt[0], baseP[1] - prevPt[1]);
+    const curDist = Math.hypot(snapPt[0] - baseP[0], snapPt[1] - baseP[1]);
+    if (Math.abs(curDist - prevLen) < 14 / view.s) {
+      const dirAng = Math.atan2(snapPt[1] - baseP[1], snapPt[0] - baseP[0]);
+      const eqPt = [baseP[0] + prevLen * Math.cos(dirAng), baseP[1] + prevLen * Math.sin(dirAng)];
+      if (activeSnap) {
+        activeSnap.pt = eqPt;
+        activeSnap.label += ' · Bằng cạnh trước';
+        return activeSnap;
+      }
+      return {
+        type: 'equal_len',
+        pt: eqPt,
+        basePt: baseP,
+        refPt: prevPt,
+        label: 'Bằng cạnh trước (a = b)',
+        color: '#059669'
+      };
+    }
+  }
+
+  if (activeSnap) return activeSnap;
+
+  // 8. Bắt các góc đặc biệt (0°, 30°, 45°, 60°, 90°, 120°, 135°, 150°, 180°)
+  const degAngles = [0, 30, 45, 60, 90, 120, 135, 150, 180, -30, -45, -60, -90, -120, -135, -150];
+  for (const d of degAngles) {
+    const rad = d * Math.PI / 180;
+    if (Math.abs(smartAngDiff(curAng, rad)) < 0.05) {
+      return {
+        type: 'angle',
+        pt: [baseP[0] + len * Math.cos(rad), baseP[1] + len * Math.sin(rad)],
+        basePt: baseP,
+        label: (d < 0 ? 360 + d : d) + '°',
+        color: '#64748b'
+      };
+    }
+  }
+
+  // 9. Bắt điểm thuộc đoạn thẳng (Point on segment)
+  for (const s of segs) {
+    const d = distSeg(p.x, p.y, s.p1[0], s.p1[1], s.p2[0], s.p2[1]);
+    if (d < 8 / view.s) {
+      const dx = s.p2[0] - s.p1[0], dy = s.p2[1] - s.p1[1], sl = s.len * s.len;
+      let t = sl ? ((p.x - s.p1[0]) * dx + (p.y - s.p1[1]) * dy) / sl : 0;
+      t = clamp(t, 0, 1);
+      return {
+        type: 'on_seg',
+        pt: [s.p1[0] + t * dx, s.p1[1] + t * dy],
+        seg: s,
+        label: 'Thuộc đoạn',
+        color: '#64748b'
+      };
+    }
+  }
+
+  return null;
+}
+
+/* Hoàn thành đa giác khép kín hoặc đường gấp khúc */
+function smartFinishPolygon(closed = true) {
+  if (smartDraw.pts.length < 2) {
+    smartResetDraw();
+    return;
+  }
+
+  const pts = smartDraw.pts.slice();
+  const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].slice(0, pts.length);
+
+  if (closed && pts.length >= 3) {
+    // Tạo đối tượng đa giác / tam giác phẳng hoàn chỉnh
+    const poly = {
+      type: 'piece',
+      kind: 'poly',
+      pts: pts.map(p => [+p[0].toFixed(2), +p[1].toFixed(2)]),
+      color: color || 'ink',
+      fill: fill ? (color === 'ink' ? '#1565d8' : color) : '#1565d8',
+      alpha: fill ? 0.22 : 0.06,
+      size: size || 2,
+      dash: dash,
+      vertLabels: names
+    };
+
+    // Tạo các nhãn chữ A, B, C... đặt chuẩn ở phía NGOÀI đa giác
+    const [cx, cy] = cgCentroid(pts);
+    const textObjs = [];
+    pts.forEach((pt, i) => {
+      const dx = pt[0] - cx, dy = pt[1] - cy, len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      const tx = pt[0] + ux * 16 / view.s;
+      const ty = pt[1] + uy * 16 / view.s;
+      textObjs.push({
+        type: 'text',
+        x: tx - 6 / view.s,
+        y: ty - 10 / view.s,
+        text: names[i] || '',
+        color: 'ink',
+        fs: 17,
+        bold: true,
+        ital: true
+      });
+    });
+
+    objs.push(poly);
+    objs.push(...textObjs);
+    sel.clear();
+    sel.add(poly);
+    commit();
+
+    const shapeName = pts.length === 3 ? 'tam giác ' + names.join('') : (pts.length === 4 ? 'tứ giác ' + names.join('') : 'đa giác ' + pts.length + ' cạnh');
+    toast('Đã vẽ ' + shapeName + ' khép kín!');
+  } else {
+    // Không khép kín: tạo thành chuỗi các đoạn thẳng
+    for (let i = 0; i < pts.length - 1; i++) {
+      objs.push({
+        type: 'line',
+        x1: +pts[i][0].toFixed(2),
+        y1: +pts[i][1].toFixed(2),
+        x2: +pts[i + 1][0].toFixed(2),
+        y2: +pts[i + 1][1].toFixed(2),
+        color: color || 'ink',
+        size: size || 2,
+        dash: dash
+      });
+    }
+    commit();
+    toast('Đã vẽ đường gấp khúc ' + (pts.length - 1) + ' đoạn!');
+  }
+
+  smartResetDraw();
+  setTool('select');
+  requestDraw();
+}
+
+function smartResetDraw() {
+  smartDraw.pts = [];
+  smartDraw.curP = null;
+  smartDraw.snap = null;
+  smartDraw.downP = null;
+  smartDraw.moved = false;
+  requestDraw();
+}
+
+/* Vẽ giao diện HUD bắt điểm và các đường dóng thông minh (Efofex HUD) */
+function drawSmartHUD(c, scale) {
+  if (tool !== 'smartpoly') return;
+
+  c.save();
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+
+  const pts = smartDraw.pts;
+  const curRaw = smartDraw.curP;
+  const snap = smartDraw.snap;
+  const cur = snap ? { x: snap.pt[0], y: snap.pt[1] } : curRaw;
+
+  // 1. Vẽ các cạnh và đỉnh đã chốt
+  if (pts.length > 0) {
+    c.strokeStyle = res(color || 'ink');
+    c.lineWidth = (size || 2);
+    c.beginPath();
+    pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
+    c.stroke();
+
+    // Vẽ chấm tròn và tên chữ tại các đỉnh đã chốt
+    pts.forEach((p, i) => {
+      c.fillStyle = '#2563eb';
+      c.beginPath();
+      c.arc(p[0], p[1], 4.5 / scale, 0, 7);
+      c.fill();
+      c.strokeStyle = '#fff';
+      c.lineWidth = 1.5 / scale;
+      c.stroke();
+
+      const label = String.fromCharCode(65 + i); // A, B, C...
+      c.font = 'bold ' + (14 / scale) + 'px "Times New Roman",serif';
+      c.fillStyle = '#1e293b';
+      c.textAlign = 'right';
+      c.textBaseline = 'bottom';
+      c.fillText(label, p[0] - 6 / scale, p[1] - 6 / scale);
+    });
+
+    // 2. Vẽ nét kéo động (rubberband) từ đỉnh cuối tới vị trí hiện tại
+    if (cur) {
+      const lastP = pts[pts.length - 1];
+      c.strokeStyle = snap ? snap.color : '#2563eb';
+      c.lineWidth = (size || 2);
+      c.setLineDash([6 / scale, 4 / scale]);
+      c.beginPath();
+      c.moveTo(lastP[0], lastP[1]);
+      c.lineTo(cur.x, cur.y);
+      c.stroke();
+      c.setLineDash([]);
+    }
+  }
+
+  // 3. Hiển thị đồ họa bắt điểm động (Snap Guides & HUD Indicators)
+  if (cur && snap) {
+    const sp = snap.pt;
+
+    // a) Điểm khép kín hình
+    if (snap.type === 'close') {
+      c.strokeStyle = '#10b981';
+      c.lineWidth = 2.5 / scale;
+      c.beginPath();
+      c.arc(sp[0], sp[1], 10 / scale, 0, 7);
+      c.stroke();
+
+      c.fillStyle = 'rgba(16, 185, 129, 0.25)';
+      c.beginPath();
+      c.arc(sp[0], sp[1], 15 / scale, 0, 7);
+      c.fill();
+    }
+    // b) Điểm đỉnh / mút
+    else if (snap.type === 'vertex') {
+      c.strokeStyle = '#2563eb';
+      c.lineWidth = 2.2 / scale;
+      c.beginPath();
+      c.arc(sp[0], sp[1], 8 / scale, 0, 7);
+      c.stroke();
+    }
+    // c) Điểm trung điểm
+    else if (snap.type === 'midpoint') {
+      c.fillStyle = '#f59e0b';
+      c.beginPath();
+      c.arc(sp[0], sp[1], 5 / scale, 0, 7);
+      c.fill();
+      c.strokeStyle = '#fff';
+      c.lineWidth = 1.5 / scale;
+      c.stroke();
+
+      // Ký hiệu hình thoi / M
+      c.strokeStyle = '#f59e0b';
+      c.lineWidth = 1.8 / scale;
+      c.strokeRect(sp[0] - 6 / scale, sp[1] - 6 / scale, 12 / scale, 12 / scale);
+    }
+    // d) Ký hiệu góc vuông 90°
+    else if (snap.type === 'perp' && snap.basePt) {
+      const bp = snap.basePt;
+      const u1 = [cur.x - bp[0], cur.y - bp[1]], l1 = Math.hypot(u1[0], u1[1]) || 1;
+      const v1 = [u1[0] / l1 * 12 / scale, u1[1] / l1 * 12 / scale];
+      let v2;
+      if (snap.refSeg) {
+        const u2 = [snap.refSeg.p1[0] - bp[0], snap.refSeg.p1[1] - bp[1]];
+        const u2b = [snap.refSeg.p2[0] - bp[0], snap.refSeg.p2[1] - bp[1]];
+        const pick = Math.hypot(u2[0], u2[1]) > Math.hypot(u2b[0], u2b[1]) ? u2 : u2b;
+        const l2 = Math.hypot(pick[0], pick[1]) || 1;
+        v2 = [pick[0] / l2 * 12 / scale, pick[1] / l2 * 12 / scale];
+      } else {
+        v2 = [-v1[1], v1[0]];
+      }
+
+      // Ký hiệu ô vuông góc vuông
+      c.strokeStyle = '#e11d48';
+      c.lineWidth = 1.6 / scale;
+      c.beginPath();
+      c.moveTo(bp[0] + v1[0], bp[1] + v1[1]);
+      c.lineTo(bp[0] + v1[0] + v2[0], bp[1] + v1[1] + v2[1]);
+      c.lineTo(bp[0] + v2[0], bp[1] + v2[1]);
+      c.stroke();
+    }
+    // e) Ký hiệu song song //
+    else if (snap.type === 'parallel' && snap.refSeg) {
+      c.strokeStyle = '#7c3aed';
+      c.lineWidth = 1.8 / scale;
+      c.setLineDash([4 / scale, 4 / scale]);
+      // Đường dóng kéo dài song song
+      const rs = snap.refSeg;
+      c.beginPath();
+      c.moveTo(rs.p1[0], rs.p1[1]); c.lineTo(rs.p2[0], rs.p2[1]);
+      c.stroke();
+      c.setLineDash([]);
+    }
+
+    // 4. Floating Badge / Tooltip hiển thị nhãn bắt điểm
+    const tx = cur.x + 14 / scale;
+    const ty = cur.y + 14 / scale;
+    const label = snap.label;
+    c.font = 'bold ' + (12 / scale) + 'px ' + FONT;
+    const tw = c.measureText(label).width;
+    const th = 20 / scale;
+
+    c.fillStyle = snap.color || '#1e293b';
+    c.beginPath();
+    const r = 4 / scale;
+    c.roundRect ? c.roundRect(tx - 4 / scale, ty - 14 / scale, tw + 14 / scale, th, r) : c.rect(tx - 4 / scale, ty - 14 / scale, tw + 14 / scale, th);
+    c.fill();
+
+    c.fillStyle = '#ffffff';
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillText(label, tx + 3 / scale, ty - 4 / scale);
+  }
+
+  // 5. Thanh thông báo hướng dẫn dưới chân màn hình
+  const hintText = pts.length === 0
+    ? '📐 Bấm hoặc kéo điểm đầu tiên để bắt đầu vẽ'
+    : (pts.length === 1
+      ? 'Kéo đến điểm thứ hai (cạnh 1)'
+      : (pts.length === 2
+        ? 'Kéo điểm thứ ba (bẻ góc) · Nối lại điểm A để khép kín tam giác ABC'
+        : 'Bấm nối lại điểm A để khép kín đa giác (' + pts.length + ' cạnh) · Nhấn Enter để hoàn tất'));
+
+  c.restore();
+
+  // Hiển thị toast gợi ý nhẹ góc dưới
+  const hb = $('#smartPolyBar');
+  if (hb) {
+    hb.textContent = hintText;
+    hb.hidden = false;
+  }
+}
 /* ---------- trải hình (khai triển) cho hình không gian dựng sẵn ----------
    Khối đa diện: các mặt nối với nhau thành cây quanh mặt đáy; mỗi mặt quay quanh cạnh gấp với mặt cha một góc
    (t × góc cần để nằm phẳng), mặt con quay theo mặt cha. Trụ, nón: mặt xung quanh cuộn ra quanh đường sinh phía trước,
@@ -6496,6 +7081,7 @@ const G1=grp('Công cụ'),G2=grp('Kiểu nét'),G3=grp('Chèn và dụng cụ')
 toolBtns.pen=mkBtn(G1,pa('M12 20l-4-8 2-6h4l2 6zM12 20v-7M9.5 4h5'),'Bút viết (P). Bấm lại để chọn loại nét: bút bi, bút máy, thư pháp, bút lông, bút chì, neon',()=>{if(tool==='pen')togglePop('popPen',toolBtns.pen);else{setTool('pen');hintOnce('pen','Bấm lại nút Bút để chọn loại nét: bút máy, thư pháp, bút lông, bút chì, neon.')}},'tool');toolBtns.pen.dataset.pop=1;
 toolBtns.hl=mkBtn(G1,pa('M8 15l9-10 4 4-10 9zM8 15l3 3M8 15l-3 5h5'),'Bút dạ quang (M)',()=>setTool('hl'),'tool');
 toolBtns.line=mkBtn(G1,pa('M5 19L19 5'),'Đoạn thẳng (L)',()=>setTool('line'),'tool');
+toolBtns.smartpoly=mkBtn(G1,svg('<path d="M4 19L12 5l8 14H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="4" cy="19" r="2" fill="currentColor"/><circle cx="20" cy="19" r="2" fill="currentColor"/><path d="M10 19v-4h4" fill="none" stroke="currentColor" stroke-width="1.2"/>'),'Vẽ hình bắt điểm động (Efofex): tam giác, đa giác, trung điểm, vuông góc, song song (W)',()=>setTool('smartpoly'),'tool');
 const shapeB=popBtn(G1,svg('<rect x="3" y="11" width="9" height="9"/><circle cx="16" cy="8" r="5"/>'),'Hình: chữ nhật, elip, tam giác, mũi tên','popShape','tool');
 toolBtns.text=mkBtn(G1,pa('M5 6V4h14v2M12 4v16M9 20h6'),'Chữ (T)',()=>setTool('text'),'tool');
 toolBtns.eraser=mkBtn(G1,pa('M4 16l9-10 7 7-6 7H8zM9 11l6 6M8 20h12'),'Tẩy nét bút và hình vẽ (E). Ảnh, chữ, công thức, đồ thị, bảng: chọn rồi nhấn Delete',()=>setTool('eraser'),'tool');
@@ -6526,7 +7112,7 @@ mkBtn(G3,pa('M3 5h18v14H3zM3 10h18M8 5v14M11 17l7-4M18 13l-3.2-.4M18 13l-1.6 2.8
 popBtn(G3,'<b style="font:700 15px Consolas,monospace">&lt;/&gt;</b>','Tin học: mã nguồn, sơ đồ khối, hệ đếm, logic, bảng tính, thuật toán, SQL, Scratch, mạng','popTin');
 const moreB=popBtn(G3,pa('M4 20V10M10 20V4M16 20v-7M22 20H2M17 4c2 0 3 1.5 3 3'),'Chèn thêm: bảng, biểu đồ, hoá học, con dấu, ghi chú, chú thích, hình dụng cụ, gọi tên, đồng hồ','popMore');
 
-const SHP=[['rect','Hình chữ nhật (R)',pa('M4 6h16v12H4z')],['ellipse','Elip, đường tròn (O)',svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>')],['tri','Tam giác (I)',pa('M12 4l9 16H3z')],['arrow','Mũi tên (A)',pa('M5 19L19 5M10 5h9v9')],['cutter','✂ Dao cắt hình (vẽ đường cắt ngang qua bất kỳ hình nào)',svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2.2"/>')]];
+const SHP=[['rect','Hình chữ nhật (R)',pa('M4 6h16v12H4z')],['ellipse','Elip, đường tròn (O)',svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>')],['tri','Tam giác (I)',pa('M12 4l9 16H3z')],['arrow','Mũi tên (A)',pa('M5 19L19 5M10 5h9v9')],['smartpoly','Vẽ hình bắt điểm động (Efofex)',svg('<path d="M4 19L12 5l8 14H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="5" r="2" fill="currentColor"/><circle cx="4" cy="19" r="2" fill="currentColor"/><circle cx="20" cy="19" r="2" fill="currentColor"/><path d="M10 19v-4h4" fill="none" stroke="currentColor" stroke-width="1.2"/>')],['cutter','✂ Dao cắt hình (vẽ đường cắt ngang qua bất kỳ hình nào)',svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2.2"/>')]];
 for(const[t,l,ic]of SHP)toolBtns[t]=mkBtn($('#shapeGrid'),ic,l,()=>{setTool(t);closePops()});
 $('#fillChk').addEventListener('change',e=>{fill=e.target.checked;let ch=false;for(const o of sel)if('x1' in o){o.fill=fill;ch=true}if(ch)commit()});
 
@@ -6573,10 +7159,10 @@ function penCursor(){
     '<path d="M-1.9-26V-15" stroke="#fff" stroke-opacity=".28" stroke-width="1.2" stroke-linecap="round"/></g></svg>',3,3);
 }
 const ERASE_CUR=curUrl('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="#fff" fill-opacity=".55" stroke="#fff" stroke-width="3"/><circle cx="12" cy="12" r="8.5" fill="none" stroke="#262b33" stroke-width="1.3"/></svg>',12,12);
-function setCursor(){cv.style.cursor=tool==='stamp'?'copy':tool==='laser'?'none':tool==='cutter'?'crosshair':tool==='pan'||spaceDown?'grab':tool==='select'?'default':tool==='text'?'text':tool==='eraser'?eraseCursor():penCursor()}
+function setCursor(){cv.style.cursor=tool==='stamp'?'copy':tool==='laser'?'none':tool==='cutter'||tool==='smartpoly'?'crosshair':tool==='pan'||spaceDown?'grab':tool==='select'?'default':tool==='text'?'text':tool==='eraser'?eraseCursor():penCursor()}
 /* Bút dạ quang giữ màu và độ dày riêng; mọi công cụ còn lại dùng chung màu và độ dày của bút. */
 function styleOf(t){return t==='hl'?{c:hlColor,s:hlSize}:{c:penColor,s:penSize}}
-function setTool(t){commitText();tool=t;if(t!=='select')sel.clear();const st=styleOf(t);color=st.c;size=st.s;syncUI();setCursor();requestDraw()}
+function setTool(t){if(tool==='smartpoly'&&t!=='smartpoly'&&typeof smartResetDraw==='function')smartResetDraw();commitText();tool=t;if(t!=='select')sel.clear();const st=styleOf(t);color=st.c;size=st.s;syncUI();setCursor();requestDraw()}
 function setColor(c){
   /* Đang chọn sẵn đối tượng: chỉ đổi màu chúng. Còn lại: đổi màu cho công cụ đang dùng; nếu đang tẩy hay kéo trang thì chuyển sang bút. */
   let ch=false;
@@ -6591,7 +7177,7 @@ $('#size').addEventListener('input',e=>{size=+e.target.value;if(tool==='hl')hlSi
 $('#size').addEventListener('change',()=>{if(sel.size)commit();else save()});
 function syncUI(){
   for(const k in toolBtns)toolBtns[k].setAttribute('aria-pressed',k===tool);
-  shapeB.setAttribute('aria-pressed',['rect','ellipse','tri','arrow','cutter'].includes(tool));
+  shapeB.setAttribute('aria-pressed',['rect','ellipse','tri','arrow','cutter','smartpoly'].includes(tool));
   for(const k in instBtns)instBtns[k].setAttribute('aria-pressed',inst[k].on);
   instB.setAttribute('aria-pressed',inst.ruler.on||inst.pro.on||inst.comp.on);
   dashB.setAttribute('aria-pressed',dash);
@@ -8784,10 +9370,14 @@ function openAlign(){const n=sel.size,m=alMov().length;
   $('#alCols').value=clamp(Math.ceil(Math.sqrt(Math.max(1,m))),1,20);togglePop('popAlign',sbBtn.align)}
 sbBtn.align=mkBtn(SB,pa('M4 3v18M8 7h12v4H8zM8 14h7v4H8z'),'Căn chỉnh, sắp xếp',openAlign);sbBtn.align.dataset.pop=1;
 /* ---------- bàn phím ---------- */
-const KEYS={q:'laser',v:'select',h:'pan',p:'pen',m:'hl',e:'eraser',l:'line',a:'arrow',r:'rect',o:'ellipse',i:'tri',t:'text'};
+const KEYS={q:'laser',v:'select',h:'pan',p:'pen',m:'hl',e:'eraser',l:'line',a:'arrow',r:'rect',o:'ellipse',i:'tri',t:'text',w:'smartpoly'};
 addEventListener('keydown',e=>{
   if(e.target.closest&&e.target.closest('input,textarea,dialog,#calc'))return;
   const k=e.key.toLowerCase(),mod=e.ctrlKey||e.metaKey;
+  if(tool==='smartpoly'){
+    if(e.key==='Enter'){e.preventDefault();smartFinishPolygon(smartDraw.pts.length>=3);return}
+    if(e.key==='Escape'&&smartDraw.pts.length){e.preventDefault();smartResetDraw();return}
+  }
   if(e.key==='F5'){e.preventDefault();setPresent(!PRES);return}
   if(PRES&&!mod&&(e.key==='ArrowRight'||e.key==='ArrowDown')){e.preventDefault();return gotoPage(pi+1)}
   if(PRES&&!mod&&(e.key==='ArrowLeft'||e.key==='ArrowUp')){e.preventDefault();return gotoPage(pi-1)}
