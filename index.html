@@ -2080,7 +2080,7 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===1||tool==='pan'||spaceDown||(penOnly&&e.pointerType==='touch'&&tool!=='select')){drag={type:'pan',sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y};cv.style.cursor='grabbing';return}
   if(e.button!==0&&role!=='draw')return;
   const p=toWorld(e);
-  if(typeof cgSlicing!=='undefined'&&cgSlicing){drag={type:'slice',p1:p,p2:p};requestDraw();return}
+  if(tool==='cutter'||(typeof cgSlicing!=='undefined'&&cgSlicing)){drag={type:'slice',p1:p,p2:p};requestDraw();return}
   const hd=instDown(p);if(hd){drag=hd;requestDraw();return}
   /* áp lòng bàn tay khi đang viết, vẽ: lau bảng */
   const palm=palmOf(e);if(palm&&(tool==='pen'||tool==='hl'||SHAPES.includes(tool))){palmNotice(Math.max(e.width,e.height));drag={type:'erase',changed:false,mode:'part',r:palm/view.s,palm:true};eraseAt(p);return}
@@ -2100,9 +2100,9 @@ cv.addEventListener('pointerdown',e=>{
           hy=selObj.cy+Math.sin(midA)*(selObj.r+14/view.s);
         }else if(selObj.pts){
           const b=bbox(selObj);
-          hx=b.x+b.w/2;hy=b.y-14/view.s;
+          hx=b.x+b.w/2;hy=b.y-18/view.s;
         }
-        if(hx!==undefined&&Math.hypot(p.x-hx,p.y-hy)<14*touchTol(e)/view.s){
+        if(hx!==undefined&&Math.hypot(p.x-hx,p.y-hy)<16*touchTol(e)/view.s){
           drag={type:'rotPiece',o:selObj,startP:p,moved:false};
           requestDraw();return;
         }
@@ -2197,7 +2197,7 @@ function endPointer(e){
   if(drag.group&&pointers.size){return}
   const d=drag;drag=null;
   if(d.type==='laser'){laser.cur=null;requestDraw();return}
-  if(d.type==='slice'){cgApplySlice(d.p1,d.p2);requestDraw();return}
+  if(d.type==='slice'){cgApplySlice(d.p1,d.p2);if(tool==='cutter')setTool('select');requestDraw();return}
   if(d.type==='rotPiece'){cgSnapPiece(d.o);commit();requestDraw();return}
   if(d.type==='curtain'){commit();return}
   if(d.type==='inst')instUp(d);
@@ -3299,18 +3299,28 @@ function drawPiece(c, o, scale) {
       if (sel.has(o)) {
         const b = bbox(o);
         const hx = b.x + b.w / 2;
-        const hy = b.y - 14 / scale;
+        const hy = b.y - 18 / scale;
         c.strokeStyle = theme.accent;
-        c.lineWidth = 1.4 / scale;
+        c.lineWidth = 1.6 / scale;
         c.beginPath();
         c.moveTo(hx, b.y);
         c.lineTo(hx, hy);
         c.stroke();
 
-        c.fillStyle = theme.accent;
+        const hr = 9 / scale;
+        c.fillStyle = theme.paper;
         c.beginPath();
-        c.arc(hx, hy, 5 / scale, 0, 7);
+        c.arc(hx, hy, hr, 0, 7);
         c.fill();
+        c.strokeStyle = theme.accent;
+        c.lineWidth = 2 / scale;
+        c.stroke();
+
+        c.fillStyle = theme.accent;
+        c.font = 'bold ' + (11 / scale) + 'px sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('↻', hx, hy + 0.5 / scale);
       }
     }
   } else if (o.kind === 'baseline') {
@@ -3511,9 +3521,10 @@ function cgSnapPiece(o) {
       cgCheck180(o.cx, o.cy);
     }
   } else if (o.kind === 'poly' || o.kind === 'tangram') {
-    // Bắt dính đỉnh đa giác vào đỉnh đa giác khác hoặc khung target
+    // 1. Bắt dính đỉnh đa giác vào đỉnh đa giác khác hoặc khung target
     let snapDx = 0, snapDy = 0, found = false;
-    const tol = 14 / view.s;
+    let targetOther = null, snappedQ = null;
+    const tol = 16 / view.s;
     for (const p of o.pts) {
       for (const other of objs) {
         if (other === o || other.type !== 'piece' || (!other.pts)) continue;
@@ -3523,6 +3534,8 @@ function cgSnapPiece(o) {
             snapDx = q[0] - p[0];
             snapDy = q[1] - p[1];
             found = true;
+            snappedQ = q;
+            targetOther = other;
             break;
           }
         }
@@ -3532,6 +3545,46 @@ function cgSnapPiece(o) {
     }
     if (found) {
       cgMovePiece(o, snapDx, snapDy);
+
+      // 2. Bắt dính cạnh kề nếu góc quay gần khớp (trong tầm 14 độ)
+      if (targetOther && targetOther.pts && snappedQ) {
+        const nO = o.pts.length;
+        const pIdx = o.pts.findIndex(p => Math.hypot(p[0] - snappedQ[0], p[1] - snappedQ[1]) < 1);
+        const qIdx = targetOther.pts.indexOf(snappedQ);
+
+        if (pIdx >= 0 && qIdx >= 0) {
+          const pNext = o.pts[(pIdx + 1) % nO];
+          const pPrev = o.pts[(pIdx - 1 + nO) % nO];
+          const qNext = targetOther.pts[(qIdx + 1) % targetOther.pts.length];
+          const qPrev = targetOther.pts[(qIdx - 1 + targetOther.pts.length) % targetOther.pts.length];
+
+          const pAng1 = Math.atan2(pNext[1] - snappedQ[1], pNext[0] - snappedQ[0]);
+          const pAng2 = Math.atan2(pPrev[1] - snappedQ[1], pPrev[0] - snappedQ[0]);
+          const qAng1 = Math.atan2(qNext[1] - snappedQ[1], qNext[0] - snappedQ[0]);
+          const qAng2 = Math.atan2(qPrev[1] - snappedQ[1], qPrev[0] - snappedQ[0]);
+
+          const targets = [qAng1, qAng2];
+          let bestDiff = null;
+
+          for (const myAng of [pAng1, pAng2]) {
+            for (const tAng of targets) {
+              let diff = (tAng - myAng) % (2 * Math.PI);
+              while (diff < -Math.PI) diff += 2 * Math.PI;
+              while (diff > Math.PI) diff -= 2 * Math.PI;
+
+              if (Math.abs(diff) < 0.25) {
+                if (bestDiff === null || Math.abs(diff) < Math.abs(bestDiff)) {
+                  bestDiff = diff;
+                }
+              }
+            }
+          }
+
+          if (bestDiff !== null && Math.abs(bestDiff) > 1e-4) {
+            o.pts = o.pts.map(p => cgRotPt(p[0], p[1], snappedQ[0], snappedQ[1], bestDiff));
+          }
+        }
+      }
     }
   }
 }
@@ -4044,75 +4097,152 @@ function cgInsertTangram(shapeType = 'cat') {
   toast('Đã chèn trò chơi Tangram 7 miếng ghép. Hãy thử xếp hình con mèo!');
 }
 
-/* ---------- CẮT ĐA GIÁC ĐANG CHỌN (SLICER) ---------- */
+/* ---------- CẮT ĐA GIÁC / HÌNH VẼ (DAO CẮT SLICER) ---------- */
 let cgSlicing = false;
+
+function cgCanSlice(o) {
+  if (!o) return false;
+  if (o.type === 'tri' || o.type === 'rect') return true;
+  if (o.type === 'piece' && (o.kind === 'poly' || o.kind === 'tangram')) return true;
+  if (o.type === 'ellipse') return true;
+  if (o.type === 'geo') return true;
+  if (o.type === 'stroke' && o.pts && o.pts.length >= 6) return true;
+  return false;
+}
+
+function cgToPolyPts(o) {
+  if (!o) return null;
+  if (o.type === 'tri') return triPts(o);
+  if (o.type === 'rect') {
+    const b = bbox(o);
+    return [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+  }
+  if (o.type === 'piece' && (o.kind === 'poly' || o.kind === 'tangram')) {
+    return o.pts;
+  }
+  if (o.type === 'ellipse') {
+    const b = bbox(o);
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    const rx = b.w / 2, ry = b.h / 2;
+    const pts = [];
+    for (let i = 0; i < 32; i++) {
+      const a = i * 2 * Math.PI / 32;
+      pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
+    }
+    return pts;
+  }
+  if (o.type === 'geo') {
+    const V = geoSolve(o);
+    const polyEl = o.els.find(e => e.t === 'poly');
+    if (polyEl && V.get(polyEl.id) && V.get(polyEl.id).G) {
+      const k = o.w / o.bw, ky = o.h / o.bh;
+      return V.get(polyEl.id).G.map(p => [o.x + p[0] * k, o.y + p[1] * ky]);
+    }
+    const ptEls = o.els.filter(e => { const g = V.get(e.id); return g && g.P; });
+    if (ptEls.length >= 3) {
+      const k = o.w / o.bw, ky = o.h / o.bh;
+      return ptEls.map(e => { const p = V.get(e.id).P; return [o.x + p[0] * k, o.y + p[1] * ky]; });
+    }
+  }
+  if (o.type === 'stroke' && o.pts && o.pts.length >= 6) {
+    return o.pts.map(p => [p[0], p[1]]);
+  }
+  return null;
+}
+
+function cgSegSegInter(x1, y1, x2, y2, x3, y3, x4, y4) {
+  const d1 = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
+  const d2 = (x2 - x1) * (y4 - y1) - (y2 - y1) * (x4 - x1);
+  const d3 = (x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3);
+  const d4 = (x4 - x3) * (y2 - y3) - (y4 - y3) * (x2 - x3);
+  return (((d1 > 1e-6 && d2 < -1e-6) || (d1 < -1e-6 && d2 > 1e-6)) &&
+          ((d3 > 1e-6 && d4 < -1e-6) || (d3 < -1e-6 && d4 > 1e-6)));
+}
+
 function cgStartSlice() {
-  if (sel.size !== 1) {
-    toast('Hãy chọn một hình đa giác, tam giác hoặc hình chữ nhật cần cắt.');
-    return;
-  }
-  const o = [...sel][0];
-  if (o.type !== 'tri' && o.type !== 'rect' && !(o.type === 'piece' && (o.kind === 'poly' || o.kind === 'tangram'))) {
-    toast('Chỉ có thể cắt tam giác, hình chữ nhật hoặc đa giác phẳng.');
-    return;
-  }
   cgSlicing = true;
-  cv.style.cursor = 'crosshair';
-  toast('Kéo một đường thẳng cắt ngang qua hình để chia làm hai mảnh!');
+  setTool('cutter');
+  toast('Kéo một đường thẳng cắt ngang qua hình để chia làm các mảnh!');
 }
 
 /* Thực hiện cắt hình khi người dùng nhả chuột/bút trong chế độ cắt */
 function cgApplySlice(p1, p2) {
-  if (!cgSlicing || sel.size !== 1) return false;
   cgSlicing = false;
   setCursor();
 
-  const o = [...sel][0];
-  let pts = [];
-  if (o.type === 'tri') pts = triPts(o);
-  else if (o.type === 'rect') {
-    const b = bbox(o);
-    pts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
-  } else if (o.type === 'piece' && (o.kind === 'poly' || o.kind === 'tangram')) {
-    pts = o.pts;
+  // 1. Tìm hình cần cắt: nếu đang chọn 1 hình thì ưu tiên hình đó, nếu không thì tự tìm hình giao với đường cắt
+  let targetObj = null;
+  if (sel.size === 1) {
+    const o = [...sel][0];
+    if (cgCanSlice(o)) targetObj = o;
+  }
+  if (!targetObj) {
+    for (let i = objs.length - 1; i >= 0; i--) {
+      const o = objs[i];
+      if (o.lock || o.pin || !cgCanSlice(o)) continue;
+      const pts = cgToPolyPts(o);
+      if (pts && pts.length >= 3) {
+        let interCount = 0;
+        for (let j = 0; j < pts.length; j++) {
+          const a = pts[j], b = pts[(j + 1) % pts.length];
+          if (cgSegSegInter(p1.x, p1.y, p2.x, p2.y, a[0], a[1], b[0], b[1])) {
+            interCount++;
+          }
+        }
+        if (interCount >= 2) {
+          targetObj = o;
+          break;
+        }
+      }
+    }
   }
 
-  if (pts.length < 3) return false;
+  if (!targetObj) {
+    toast('Đường cắt chưa cắt qua mép của hình vẽ nào. Hãy kéo cắt xuyên qua hình!');
+    return false;
+  }
+
+  const pts = cgToPolyPts(targetObj);
+  if (!pts || pts.length < 3) return false;
 
   const result = cgSlicePoly(pts, p1.x, p1.y, p2.x, p2.y);
   if (!result) {
-    toast('Đường cắt chưa đi xuyên qua hai cạnh của hình. Vui lòng thử lại!');
+    toast('Đường cắt chưa đi xuyên qua hai mép của hình. Vui lòng kéo cắt lại!');
     return false;
   }
 
   // Thay thế hình cũ bằng 2 mảnh mới
-  const idx = objs.indexOf(o);
+  const idx = objs.indexOf(targetObj);
   if (idx < 0) return false;
+
+  const colorPalette = ['#228be6', '#fa5252', '#40c057', '#fd7e14', '#7950f2', '#fcc419', '#12b886', '#e64980'];
+  const fill1 = targetObj.fill && targetObj.fill !== true ? targetObj.fill : colorPalette[objs.length % colorPalette.length];
+  const fill2 = colorPalette[(objs.length + 3) % colorPalette.length];
 
   const piece1 = {
     type: 'piece',
     kind: 'poly',
     pts: result[0],
-    fill: o.fill && o.fill !== true ? o.fill : '#1565d8',
-    color: o.color || 'ink',
-    size: o.size || 2
+    fill: fill1,
+    color: targetObj.color || 'ink',
+    size: targetObj.size || 2
   };
 
   const piece2 = {
     type: 'piece',
     kind: 'poly',
     pts: result[1],
-    fill: '#ff8a00',
-    color: o.color || 'ink',
-    size: o.size || 2
+    fill: fill2,
+    color: targetObj.color || 'ink',
+    size: targetObj.size || 2
   };
 
   objs.splice(idx, 1, piece1, piece2);
   sel.clear();
-  sel.add(piece1);
-  sel.add(piece2);
+  sel.add(piece2); // Tự động chọn mảnh thứ 2 để kéo dời và xoay ngay
   commit();
-  toast('Đã cắt hình thành 2 mảnh đa giác độc lập! Bạn có thể dời và xoay từng mảnh.');
+  requestDraw();
+  toast('✂ Đã cắt hình thành 2 mảnh ghép! Kéo mảnh hoặc dùng nút xoay 🔄 trên đầu để ghép hình.');
   return true;
 }
 
@@ -6396,7 +6526,7 @@ mkBtn(G3,pa('M3 5h18v14H3zM3 10h18M8 5v14M11 17l7-4M18 13l-3.2-.4M18 13l-1.6 2.8
 popBtn(G3,'<b style="font:700 15px Consolas,monospace">&lt;/&gt;</b>','Tin học: mã nguồn, sơ đồ khối, hệ đếm, logic, bảng tính, thuật toán, SQL, Scratch, mạng','popTin');
 const moreB=popBtn(G3,pa('M4 20V10M10 20V4M16 20v-7M22 20H2M17 4c2 0 3 1.5 3 3'),'Chèn thêm: bảng, biểu đồ, hoá học, con dấu, ghi chú, chú thích, hình dụng cụ, gọi tên, đồng hồ','popMore');
 
-const SHP=[['rect','Hình chữ nhật (R)',pa('M4 6h16v12H4z')],['ellipse','Elip, đường tròn (O)',svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>')],['tri','Tam giác (I)',pa('M12 4l9 16H3z')],['arrow','Mũi tên (A)',pa('M5 19L19 5M10 5h9v9')]];
+const SHP=[['rect','Hình chữ nhật (R)',pa('M4 6h16v12H4z')],['ellipse','Elip, đường tròn (O)',svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>')],['tri','Tam giác (I)',pa('M12 4l9 16H3z')],['arrow','Mũi tên (A)',pa('M5 19L19 5M10 5h9v9')],['cutter','✂ Dao cắt hình (vẽ đường cắt ngang qua bất kỳ hình nào)',svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2.2"/>')]];
 for(const[t,l,ic]of SHP)toolBtns[t]=mkBtn($('#shapeGrid'),ic,l,()=>{setTool(t);closePops()});
 $('#fillChk').addEventListener('change',e=>{fill=e.target.checked;let ch=false;for(const o of sel)if('x1' in o){o.fill=fill;ch=true}if(ch)commit()});
 
@@ -6443,7 +6573,7 @@ function penCursor(){
     '<path d="M-1.9-26V-15" stroke="#fff" stroke-opacity=".28" stroke-width="1.2" stroke-linecap="round"/></g></svg>',3,3);
 }
 const ERASE_CUR=curUrl('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="#fff" fill-opacity=".55" stroke="#fff" stroke-width="3"/><circle cx="12" cy="12" r="8.5" fill="none" stroke="#262b33" stroke-width="1.3"/></svg>',12,12);
-function setCursor(){cv.style.cursor=tool==='stamp'?'copy':tool==='laser'?'none':tool==='pan'||spaceDown?'grab':tool==='select'?'default':tool==='text'?'text':tool==='eraser'?eraseCursor():penCursor()}
+function setCursor(){cv.style.cursor=tool==='stamp'?'copy':tool==='laser'?'none':tool==='cutter'?'crosshair':tool==='pan'||spaceDown?'grab':tool==='select'?'default':tool==='text'?'text':tool==='eraser'?eraseCursor():penCursor()}
 /* Bút dạ quang giữ màu và độ dày riêng; mọi công cụ còn lại dùng chung màu và độ dày của bút. */
 function styleOf(t){return t==='hl'?{c:hlColor,s:hlSize}:{c:penColor,s:penSize}}
 function setTool(t){commitText();tool=t;if(t!=='select')sel.clear();const st=styleOf(t);color=st.c;size=st.s;syncUI();setCursor();requestDraw()}
@@ -6461,7 +6591,7 @@ $('#size').addEventListener('input',e=>{size=+e.target.value;if(tool==='hl')hlSi
 $('#size').addEventListener('change',()=>{if(sel.size)commit();else save()});
 function syncUI(){
   for(const k in toolBtns)toolBtns[k].setAttribute('aria-pressed',k===tool);
-  shapeB.setAttribute('aria-pressed',['rect','ellipse','tri','arrow'].includes(tool));
+  shapeB.setAttribute('aria-pressed',['rect','ellipse','tri','arrow','cutter'].includes(tool));
   for(const k in instBtns)instBtns[k].setAttribute('aria-pressed',inst[k].on);
   instB.setAttribute('aria-pressed',inst.ruler.on||inst.pro.on||inst.comp.on);
   dashB.setAttribute('aria-pressed',dash);
@@ -7030,14 +7160,16 @@ Object.assign(sbBtn,{
   cutAng:mkBtn(SB,svg('<path d="M6 9l6 6M6 15l6-6"/><circle cx="5" cy="8" r="2"/><circle cx="5" cy="16" r="2"/><path d="M12 12l8-5M12 12l8 5"/>'),'Cắt các góc thành các mảnh quạt riêng',()=>{
     const o=[...sel][0];if(o){const pieces=cgCutAngles(o);if(pieces.length){objs.push(...pieces);sel.clear();pieces.forEach(p=>sel.add(p));commit();toast('Đã cắt '+pieces.length+' góc thành các mảnh quạt!')}}
   }),
-  slice:mkBtn(SB,svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2"/>'),'Cắt đôi hình bằng đường thẳng (kéo vạch cắt qua hình)',cgStartSlice),
+  slice:mkBtn(SB,svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2"/>'),'Cắt hình bằng đường thẳng (kéo vạch cắt qua hình)',cgStartSlice),
   rot45:mkBtn(SB,svg('<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.6L21 8M21 3v5h-5"/>'),'Xoay mảnh ghép 45°',()=>{for(const o of sel)if(o.type==='piece')cgRotatePiece(o,45)}),
-  flip:mkBtn(SB,svg('<path d="M12 2v20M4 18l6-12v12zM20 18l-6-12v12z" stroke-dasharray="2 2"/>'),'Lật mảnh ghép đối xứng ngang',()=>{for(const o of sel)if(o.type==='piece')cgFlipPiece(o,'h')})});
+  rot90:mkBtn(SB,svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>'),'Xoay mảnh ghép 90°',()=>{for(const o of sel)if(o.type==='piece')cgRotatePiece(o,90)}),
+  flip:mkBtn(SB,svg('<path d="M12 2v20M4 18l6-12v12zM20 18l-6-12v12z" stroke-dasharray="2 2"/>'),'Lật ngang mảnh ghép',()=>{for(const o of sel)if(o.type==='piece')cgFlipPiece(o,'h')}),
+  flipV:mkBtn(SB,svg('<path d="M2 12h20M18 4l-12 6h12zM18 20l-12-6h12z" stroke-dasharray="2 2"/>'),'Lật dọc mảnh ghép',()=>{for(const o of sel)if(o.type==='piece')cgFlipPiece(o,'v')})});
 function syncSelExtra(){const L=[...sel],one=L.length===1&&L[0],img=one&&one.type==='image'&&!one.lock,txt=L.length&&L.every(o=>o.type==='text'||o.type==='note'||o.type==='callout');
   const piece=L.some(o=>o.type==='piece');
-  const cuttable=one&&(one.type==='tri'||one.type==='rect'||(one.type==='piece'&&(one.kind==='poly'||one.kind==='tangram')));
+  const cuttable=one&&(typeof cgCanSlice==='function'?cgCanSlice(one):(one.type==='tri'||one.type==='rect'||one.type==='piece'));
   sbBtn.rot.hidden=!L.some(o=>o.type==='image'&&!o.lock);sbBtn.crop.hidden=!img;sbBtn.bold.hidden=sbBtn.ital.hidden=!txt;sbBtn.tbg.hidden=!(txt&&L.some(o=>o.type==='text'));
-  sbBtn.cutAng.hidden=!cuttable;sbBtn.slice.hidden=!cuttable;sbBtn.rot45.hidden=!piece;sbBtn.flip.hidden=!piece;}
+  sbBtn.cutAng.hidden=!cuttable;sbBtn.slice.hidden=!cuttable;sbBtn.rot45.hidden=!piece;sbBtn.rot90.hidden=!piece;sbBtn.flip.hidden=!piece;sbBtn.flipV.hidden=!piece;}
 /* thư viện hình ToanViet theo từng nhóm */
 $('#mxLib').onclick=()=>openTvLib();$('#mxNumline').onclick=()=>openTvLib(1);$('#mxSolid').onclick=()=>openTvLib(2);$('#mxStat').onclick=()=>openTvLib(3);
 $('#mxLi').onclick=()=>openTvLib(4);$('#mxHoaSinh').onclick=()=>openTvLib(5);$('#mxTieuHoc').onclick=()=>openTvLib(7);
