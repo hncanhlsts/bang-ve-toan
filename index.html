@@ -2120,12 +2120,32 @@ cv.addEventListener('pointerdown',e=>{
   else if(tool==='text'){e.preventDefault();const ot=topHit(p);if(ot&&ot.type==='text'){sel.clear();startText(null,ot)}else startText(p)}
   else if(tool==='select'){
     if(sel.size){
-      const hasPieceOrGroup=[...sel].some(o=>o.type==='piece'||o.groupId);
+      // 1. Kiểm tra tay cầm xoay của sector (mảnh quạt góc)
+      let rotSector=null;
+      for(const o of sel){
+        if(o.type==='piece'&&o.kind==='sector'){
+          const rot=o.rot||0;
+          const midA=(o.a1+o.a2+rot*2)/2;
+          const r=o.r||50;
+          const hx=o.cx+Math.cos(midA)*(r+18/view.s);
+          const hy=o.cy+Math.sin(midA)*(r+18/view.s);
+          if(Math.hypot(p.x-hx,p.y-hy)<22*touchTol(e)/view.s){
+            rotSector=o;break;
+          }
+        }
+      }
+      if(rotSector){
+        drag={type:'rotPiece',o:rotSector,cx:rotSector.cx,cy:rotSector.cy,startP:p,moved:false};
+        requestDraw();return;
+      }
+
+      // 2. Tay cầm xoay của đa giác hoặc nhóm
+      const hasPieceOrGroup=[...sel].some(o=>(o.type==='piece'&&o.kind!=='sector')||o.groupId);
       if(hasPieceOrGroup){
         const uBox=unionBox(sel);
         const hx=uBox.x+uBox.w/2;
         const hy=uBox.y-18/view.s;
-        if(Math.hypot(p.x-hx,p.y-hy)<16*touchTol(e)/view.s){
+        if(Math.hypot(p.x-hx,p.y-hy)<18*touchTol(e)/view.s){
           const cx=uBox.x+uBox.w/2,cy=uBox.y+uBox.h/2;
           drag={type:'rotPiece',o:[...sel][0],cx,cy,startP:p,moved:false};
           requestDraw();return;
@@ -2186,7 +2206,49 @@ cv.addEventListener('pointermove',e=>{
   if(drag.type==='slice'){drag.p2=p;requestDraw();return}
   else if(drag.type==='rotPiece'){
     const o=drag.o;
-    if(sel.size>1||drag.cx!==undefined){
+    if(o.kind==='sector'){
+      const midA=(o.a1+o.a2)/2;
+      const curA=cgAngle(o.cx,o.cy,p.x,p.y);
+      let newRot=curA-midA;
+
+      // Hút dính góc quay trong thời gian thực (Magnetic Snap)
+      let snapped=false;
+      for(const other of objs){
+        if(other===o||other.type!=='piece'||other.kind!=='sector')continue;
+        if(Math.hypot(o.cx-other.cx,o.cy-other.cy)<18/view.s){
+          const otherRot=other.rot||0;
+          const otherA1=other.a1+otherRot;
+          const otherA2=other.a2+otherRot;
+
+          const t1=otherA2-o.a1;
+          let d1=(newRot-t1)%(2*Math.PI);
+          while(d1<-Math.PI)d1+=2*Math.PI;while(d1>Math.PI)d1-=2*Math.PI;
+          if(Math.abs(d1)<0.28){newRot=t1;snapped=true;break;}
+
+          const t2=otherA1-o.a2;
+          let d2=(newRot-t2)%(2*Math.PI);
+          while(d2<-Math.PI)d2+=2*Math.PI;while(d2>Math.PI)d2-=2*Math.PI;
+          if(Math.abs(d2)<0.28){newRot=t2;snapped=true;break;}
+        }
+      }
+
+      if(!snapped){
+        for(const targetLineAng of [0, Math.PI]){
+          const tStart=targetLineAng-o.a1;
+          let dStart=(newRot-tStart)%(2*Math.PI);
+          while(dStart<-Math.PI)dStart+=2*Math.PI;while(dStart>Math.PI)dStart-=2*Math.PI;
+          if(Math.abs(dStart)<0.24){newRot=tStart;snapped=true;break;}
+
+          const tEnd=targetLineAng-o.a2;
+          let dEnd=(newRot-tEnd)%(2*Math.PI);
+          while(dEnd<-Math.PI)dEnd+=2*Math.PI;while(dEnd>Math.PI)dEnd-=2*Math.PI;
+          if(Math.abs(dEnd)<0.24){newRot=tEnd;snapped=true;break;}
+        }
+      }
+
+      o.rot=newRot;
+      drag.moved=true;
+    }else if(sel.size>1||drag.cx!==undefined){
       const cx=drag.cx!==undefined?drag.cx:(unionBox(sel).x+unionBox(sel).w/2);
       const cy=drag.cy!==undefined?drag.cy:(unionBox(sel).y+unionBox(sel).h/2);
       const a0=cgAngle(cx,cy,drag.startP.x,drag.startP.y);
@@ -2207,10 +2269,7 @@ cv.addEventListener('pointermove',e=>{
         }
       }
       drag.startP=p;
-    }else if(o.kind==='sector'){
-      const midA=(o.a1+o.a2)/2;
-      const curA=cgAngle(o.cx,o.cy,p.x,p.y);
-      o.rot=curA-midA;
+      drag.moved=true;
     }else if(o.pts){
       const[cx,cy]=cgCentroid(o.pts);
       const a0=cgAngle(cx,cy,drag.startP.x,drag.startP.y);
@@ -2218,8 +2277,8 @@ cv.addEventListener('pointermove',e=>{
       const diff=a1-a0;
       o.pts=o.pts.map(pt=>cgRotPt(pt[0],pt[1],cx,cy,diff));
       drag.startP=p;
+      drag.moved=true;
     }
-    drag.moved=true;
   }
   else if(drag.type==='inst')instMove(drag,p);
   else if(drag.type==='tvrot'){const t=drag.o.type==='rev'?drag.o:drag.o.tv;t.yaw=Math.round(drag.yaw0+(e.clientX-drag.sx)*.5);t.pitch=Math.round(clamp(drag.pitch0+(e.clientY-drag.sy)*.4,-85,85));drag.moved=true}
@@ -3345,23 +3404,29 @@ function drawPiece(c, o, scale) {
 
     // Nếu đang được chọn: vẽ tay cầm xoay quanh đỉnh ở mép ngoài
     if (sel.has(o)) {
-      const hx = o.cx + Math.cos(midA) * (r + 14 / scale);
-      const hy = o.cy + Math.sin(midA) * (r + 14 / scale);
+      const hx = o.cx + Math.cos(midA) * (r + 18 / scale);
+      const hy = o.cy + Math.sin(midA) * (r + 18 / scale);
       c.strokeStyle = theme.accent;
-      c.lineWidth = 1.4 / scale;
+      c.lineWidth = 1.6 / scale;
       c.beginPath();
       c.moveTo(o.cx + Math.cos(midA) * r, o.cy + Math.sin(midA) * r);
       c.lineTo(hx, hy);
       c.stroke();
 
+      const hr = 10 / scale;
+      c.fillStyle = theme.paper;
+      c.beginPath();
+      c.arc(hx, hy, hr, 0, 7);
+      c.fill();
+      c.strokeStyle = theme.accent;
+      c.lineWidth = 2.2 / scale;
+      c.stroke();
+
       c.fillStyle = theme.accent;
-      c.beginPath();
-      c.arc(hx, hy, 5 / scale, 0, 7);
-      c.fill();
-      c.fillStyle = '#fff';
-      c.beginPath();
-      c.arc(hx, hy, 2.5 / scale, 0, 7);
-      c.fill();
+      c.font = 'bold ' + (12 / scale) + 'px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('↻', hx, hy + 0.5 / scale);
     }
   } else if (o.kind === 'poly' || o.kind === 'tangram') {
     // Mảnh đa giác
@@ -3561,11 +3626,11 @@ function cgMovePiece(o, dx, dy) {
   }
 }
 
-/* Tự động bắt dính đỉnh và góc (Magnetic Snapping) khi di chuyển mảnh ghép */
+/* Tự động bắt dính đỉnh và góc (Magnetic Snapping) khi di chuyển hoặc xoay mảnh ghép */
 function cgSnapPiece(o) {
   if (o.kind === 'sector') {
-    // 1. Bắt dính đỉnh (cx, cy) vào mốc O hoặc đỉnh của mảnh sector khác
-    let bestSnap = null, minDist = 22 / view.s;
+    // 1. Bắt dính đỉnh (cx, cy) vào mốc O của baseline hoặc đỉnh của mảnh sector khác
+    let bestSnap = null, minDist = 32 / view.s;
     for (const other of objs) {
       if (other === o || other.type !== 'piece') continue;
       if (other.kind === 'baseline' && other.ox !== undefined) {
@@ -3579,46 +3644,69 @@ function cgSnapPiece(o) {
     if (bestSnap) {
       o.cx = bestSnap.x;
       o.cy = bestSnap.y;
+    }
 
-      // 2. Tự động bắt dính góc quay vào mép của mảnh bên cạnh hoặc trục ngang
-      const curRot = o.rot || 0;
-      const mySweep = o.sweep || (o.a2 - o.a1);
+    // 2. Tự động bắt dính góc quay vào mép của mảnh bên cạnh hoặc trục ngang
+    const curRot = o.rot || 0;
+    let snappedRot = false;
 
-      // Nếu có mảnh kề chung đỉnh: thử xoay áp sát mép mảnh đó
-      for (const other of objs) {
-        if (other === o || other.type !== 'piece' || other.kind !== 'sector') continue;
-        if (Math.hypot(o.cx - other.cx, o.cy - other.cy) < 2) {
-          const otherRot = other.rot || 0;
-          const otherA1 = other.a1 + otherRot;
-          const otherA2 = other.a2 + otherRot;
+    // Nếu có mảnh kề chung đỉnh (trong khoảng 14px): thử xoay áp sát mép mảnh đó
+    for (const other of objs) {
+      if (other === o || other.type !== 'piece' || other.kind !== 'sector') continue;
+      if (Math.hypot(o.cx - other.cx, o.cy - other.cy) < 14 / view.s) {
+        // Đồng bộ đỉnh cho khít tuyệt đối
+        o.cx = other.cx;
+        o.cy = other.cy;
 
-          // Thử ghép mép start của mình vào end của mảnh kia
-          const targetRot1 = otherA2 - o.a1;
-          let diffRot1 = (curRot - targetRot1) % (2 * Math.PI);
-          while (diffRot1 < -Math.PI) diffRot1 += 2 * Math.PI;
-          while (diffRot1 > Math.PI) diffRot1 -= 2 * Math.PI;
+        const otherRot = other.rot || 0;
+        const otherA1 = other.a1 + otherRot;
+        const otherA2 = other.a2 + otherRot;
 
-          if (Math.abs(diffRot1) < 0.28) { // trong tầm 16 độ
-            o.rot = targetRot1;
-            break;
-          }
+        // Thử ghép mép start của mình vào end của mảnh kia
+        const targetRot1 = otherA2 - o.a1;
+        let diffRot1 = (curRot - targetRot1) % (2 * Math.PI);
+        while (diffRot1 < -Math.PI) diffRot1 += 2 * Math.PI;
+        while (diffRot1 > Math.PI) diffRot1 -= 2 * Math.PI;
 
-          // Hoặc mép end của mình vào start của mảnh kia
-          const targetRot2 = otherA1 - o.a2;
-          let diffRot2 = (curRot - targetRot2) % (2 * Math.PI);
-          while (diffRot2 < -Math.PI) diffRot2 += 2 * Math.PI;
-          while (diffRot2 > Math.PI) diffRot2 -= 2 * Math.PI;
+        if (Math.abs(diffRot1) < 0.32) { // ~18 độ
+          o.rot = targetRot1;
+          snappedRot = true;
+          break;
+        }
 
-          if (Math.abs(diffRot2) < 0.28) {
-            o.rot = targetRot2;
-            break;
-          }
+        // Hoặc mép end của mình vào start của mảnh kia
+        const targetRot2 = otherA1 - o.a2;
+        let diffRot2 = (curRot - targetRot2) % (2 * Math.PI);
+        while (diffRot2 < -Math.PI) diffRot2 += 2 * Math.PI;
+        while (diffRot2 > Math.PI) diffRot2 -= 2 * Math.PI;
+
+        if (Math.abs(diffRot2) < 0.32) {
+          o.rot = targetRot2;
+          snappedRot = true;
+          break;
         }
       }
-
-      // 3. Kiểm tra xem 3 góc tam giác đã ghép thành 180° chưa
-      cgCheck180(o.cx, o.cy);
     }
+
+    // Nếu gần baseline nằm ngang: thử bắt mép nằm ngang (0 rad hoặc PI rad)
+    if (!snappedRot) {
+      for (const targetLineAng of [0, Math.PI]) {
+        const tStart = targetLineAng - o.a1;
+        let dStart = (curRot - tStart) % (2 * Math.PI);
+        while (dStart < -Math.PI) dStart += 2 * Math.PI;
+        while (dStart > Math.PI) dStart -= 2 * Math.PI;
+        if (Math.abs(dStart) < 0.28) { o.rot = tStart; break; }
+
+        const tEnd = targetLineAng - o.a2;
+        let dEnd = (curRot - tEnd) % (2 * Math.PI);
+        while (dEnd < -Math.PI) dEnd += 2 * Math.PI;
+        while (dEnd > Math.PI) dEnd -= 2 * Math.PI;
+        if (Math.abs(dEnd) < 0.28) { o.rot = tEnd; break; }
+      }
+    }
+
+    // 3. Kiểm tra xem các góc tam giác đã ghép thành 180° chưa
+    cgCheck180(o.cx, o.cy);
   } else if (o.kind === 'poly' || o.kind === 'tangram') {
     // 1. Bắt dính đỉnh đa giác vào đỉnh đa giác khác hoặc khung target
     let snapDx = 0, snapDy = 0, found = false;
@@ -3691,20 +3779,82 @@ function cgSnapPiece(o) {
 /* Kiểm tra tổng các góc có chung đỉnh (cx, cy) xem có đạt 180° hay 360° */
 let cgLastCelebration = 0;
 function cgCheck180(cx, cy) {
-  const commonSectors = objs.filter(o => o.type === 'piece' && o.kind === 'sector' && Math.hypot(o.cx - cx, o.cy - cy) < 4);
-  if (commonSectors.length >= 3) {
+  const commonSectors = objs.filter(o => o.type === 'piece' && o.kind === 'sector' && Math.hypot(o.cx - cx, o.cy - cy) < 14 / view.s);
+  if (commonSectors.length >= 2) {
     let sumDeg = 0;
     for (const s of commonSectors) sumDeg += (s.ang || 0);
 
     const now = performance.now();
-    if (Math.abs(sumDeg - 180) <= 2 && now - cgLastCelebration > 4000) {
+    if (Math.abs(sumDeg - 180) <= 2 && now - cgLastCelebration > 3000) {
       cgLastCelebration = now;
-      toast('🎉 Tuyệt vời! ' + commonSectors.length + ' góc ghép lại tạo thành một góc bẹt 180° chuẩn xác!');
-    } else if (Math.abs(sumDeg - 360) <= 2 && now - cgLastCelebration > 4000) {
+      toast('🎉 Tuyệt vời! ' + commonSectors.length + ' góc đã ghép lại tạo thành một đường thẳng (góc bẹt 180°)!');
+    } else if (Math.abs(sumDeg - 360) <= 2 && now - cgLastCelebration > 3000) {
       cgLastCelebration = now;
       toast('🎉 Xuất sắc! ' + commonSectors.length + ' góc đã ghép kín thành 360° (vòng tròn hoàn chỉnh)!');
     }
   }
+}
+
+/* Tự động ghép các góc (sector) thành 1 đường thẳng (góc bẹt 180°) */
+function cgAssembleAngles180() {
+  // Lấy các góc: ưu tiên từ sel, nếu không có lấy từ objs
+  let sectors = [...sel].filter(o => o.type === 'piece' && o.kind === 'sector');
+  if (sectors.length < 2) {
+    sectors = objs.filter(o => o.type === 'piece' && o.kind === 'sector');
+  }
+  if (sectors.length < 2) {
+    toast('Cần ít nhất 2 góc quạt để ghép thành đường thẳng');
+    return;
+  }
+
+  // Sắp xếp các góc theo nhãn (A, B, C...) hoặc thứ tự vIdx
+  sectors.sort((p, q) => (p.vIdx ?? 0) - (q.vIdx ?? 0) || (p.label || '').localeCompare(q.label || ''));
+
+  // Tìm hoặc tạo baseline nằm ngang
+  let bl = objs.find(o => o.type === 'piece' && o.kind === 'baseline');
+  let ox, oy;
+  if (bl) {
+    ox = bl.ox;
+    oy = bl.oy;
+  } else {
+    const u = unionBox(new Set([...objs.filter(o => o.type === 'piece' || o.type === 'tri'), ...sectors]));
+    ox = u.x + u.w / 2;
+    oy = Math.min(PH - 80, u.y + u.h + 90);
+    bl = {
+      type: 'piece',
+      kind: 'baseline',
+      x1: ox - 240,
+      y1: oy,
+      x2: ox + 240,
+      y2: oy,
+      ox: ox,
+      oy: oy,
+      color: 'ink',
+      size: 2,
+      pin: true
+    };
+    objs.push(bl);
+  }
+
+  // Ghép các góc quanh điểm O(ox, oy)
+  // Bắt đầu từ trục Ox hướng sang trái (góc PI = 180°)
+  let curEdge = Math.PI;
+  for (const s of sectors) {
+    s.cx = ox;
+    s.cy = oy;
+    const sweep = s.sweep || (s.a2 - s.a1);
+    s.rot = curEdge - s.a2;
+    curEdge -= sweep;
+  }
+
+  sel.clear();
+  sectors.forEach(s => sel.add(s));
+  commit();
+  placeSelBar();
+  requestDraw();
+
+  const labels = sectors.map(s => s.label).join(' + ∠');
+  toast('🎉 Đã ghép ' + sectors.length + ' góc thành đường thẳng 180°: ∠' + labels + ' = 180°!');
 }
 
 /* Xoay mảnh ghép một góc độ */
@@ -8199,7 +8349,25 @@ Object.assign(sbBtn,{
   ital:mkBtn(SB,'<i style="font:italic 600 22px serif">I</i>','Chữ nghiêng',()=>styleSel('i')),
   tbg:mkBtn(SB,'<span style="background:#fff59d;color:#222;padding:0 5px;border-radius:4px;font:700 17px sans-serif">A</span>','Tô nền cho chữ (bấm nhiều lần để đổi màu)',()=>styleSel('bg')),
   cutAng:mkBtn(SB,svg('<path d="M6 9l6 6M6 15l6-6"/><circle cx="5" cy="8" r="2"/><circle cx="5" cy="16" r="2"/><path d="M12 12l8-5M12 12l8 5"/>'),'Cắt các góc thành các mảnh quạt riêng',()=>{
-    const o=[...sel][0];if(o){const pieces=cgCutAngles(o);if(pieces.length){objs.push(...pieces);sel.clear();pieces.forEach(p=>sel.add(p));commit();toast('Đã cắt '+pieces.length+' góc thành các mảnh quạt!')}}
+    const o=[...sel][0];if(o){
+      const pieces=cgCutAngles(o);
+      if(pieces.length){
+        const b=bbox(o),ox=b.x+b.w/2,oy=Math.min(PH-80,b.y+b.h+90);
+        let bl=objs.find(x=>x.type==='piece'&&x.kind==='baseline');
+        if(!bl){
+          bl={type:'piece',kind:'baseline',x1:ox-240,y1:oy,x2:ox+240,y2:oy,ox,oy,color:'ink',size:2,pin:true};
+          objs.push(bl);
+        }
+        objs.push(...pieces);
+        sel.clear();
+        pieces.forEach(p=>sel.add(p));
+        commit();
+        toast('Đã cắt '+pieces.length+' góc! Kéo các góc về điểm O trên đường thẳng, hoặc bấm nút Ghép 180° trên thanh nổi.');
+      }
+    }
+  }),
+  assemble180:mkBtn(SB,svg('<path d="M3 18h18M12 18a8 8 0 00-8-8v8M12 18a8 8 0 018-8v8M12 18l-4.5-6.5M12 18l4.5-6.5"/><circle cx="12" cy="18" r="1.8" fill="currentColor"/>'),'Ghép các góc thành đường thẳng 180° (góc bẹt)',()=>{
+    if(typeof cgAssembleAngles180==='function')cgAssembleAngles180();
   }),
   slice:mkBtn(SB,svg('<path d="M4 4l16 16M4 20l4-4M16 8l4-4" stroke-dasharray="2 2"/><circle cx="6" cy="18" r="2"/>'),'Cắt hình bằng đường thẳng (kéo vạch cắt qua hình)',cgStartSlice),
   rot45:mkBtn(SB,svg('<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.6L21 8M21 3v5h-5"/>'),'Xoay 45°',()=>rotateSel(45)),
@@ -8219,7 +8387,9 @@ function syncSelExtra(){const L=[...sel],one=L.length===1&&L[0],img=one&&one.typ
   sbBtn.group.hidden=!(L.length>=2);
   sbBtn.ungroup.hidden=!L.some(o=>!!o.groupId);
   sbBtn.rot.hidden=!L.some(o=>o.type==='image'&&!o.lock);sbBtn.crop.hidden=!img;sbBtn.bold.hidden=sbBtn.ital.hidden=!txt;sbBtn.tbg.hidden=!(txt&&L.some(o=>o.type==='text'));
-  sbBtn.cutAng.hidden=!cuttable;sbBtn.slice.hidden=!cuttable;sbBtn.rot45.hidden=!piece;sbBtn.rot90.hidden=!piece;sbBtn.flip.hidden=!piece;sbBtn.flipV.hidden=!piece;}
+  sbBtn.cutAng.hidden=!cuttable;sbBtn.slice.hidden=!cuttable;sbBtn.rot45.hidden=!piece;sbBtn.rot90.hidden=!piece;sbBtn.flip.hidden=!piece;sbBtn.flipV.hidden=!piece;
+  const hasSector=L.some(o=>o.type==='piece'&&o.kind==='sector')||objs.some(o=>o.type==='piece'&&o.kind==='sector');
+  sbBtn.assemble180.hidden=!hasSector;}
 /* thư viện hình ToanViet theo từng nhóm */
 $('#mxLib').onclick=()=>openTvLib();$('#mxNumline').onclick=()=>openTvLib(1);$('#mxSolid').onclick=()=>openTvLib(2);$('#mxStat').onclick=()=>openTvLib(3);
 $('#mxLi').onclick=()=>openTvLib(4);$('#mxHoaSinh').onclick=()=>openTvLib(5);$('#mxTieuHoc').onclick=()=>openTvLib(7);
