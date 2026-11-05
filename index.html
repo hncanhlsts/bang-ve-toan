@@ -2188,6 +2188,21 @@ cv.addEventListener('pointermove',e=>{
     if(drag&&drag.group){palmGroupMove();requestDraw();return}
     if(pointers.size===2){
       const[a,b]=[...pointers.values()],r=cv.getBoundingClientRect(),d=Math.hypot(a.x-b.x,a.y-b.y),mx=(a.x+b.x)/2-r.left,my=(a.y+b.y)/2-r.top;
+      if(spot.on){
+        if(pinch){
+          const ratio=d/pinch.d;
+          if(spot.shape==='rect'){
+            spot.w=clamp(Math.round(spot.w*ratio),80,W-40);
+            spot.h=clamp(Math.round(spot.h*ratio),40,H-40);
+          }else{
+            spot.r=clamp(Math.round(spot.r*ratio),40,Math.min(W,H)*0.7);
+          }
+          spot.x=clamp((spot.x!=null?spot.x:mx)+(mx-pinch.mx),20,W-20);
+          spot.y=clamp((spot.y!=null?spot.y:my)+(my-pinch.my),20,H-20);
+          ptr={x:spot.x,y:spot.y};
+        }
+        pinch={d,mx,my};requestDraw();return;
+      }
       if(pinch){zoomAt(mx,my,d/pinch.d);view.x-=(mx-pinch.mx)/view.s;view.y-=(my-pinch.my)/view.s}
       pinch={d,mx,my};requestDraw();return;
     }
@@ -2202,7 +2217,7 @@ cv.addEventListener('pointermove',e=>{
     if(!drag)return;
   }
   if(!drag)return;
-  if(drag.type==='laser'||drag.type==='curtain'){presMove(e);return}
+  if(drag.type==='laser'||drag.type==='curtain'||drag.type==='spot'||drag.type==='spotResize'){presMove(e);return}
   if(drag.type==='slice'){drag.p2=p;requestDraw();return}
   else if(drag.type==='rotPiece'){
     const o=drag.o;
@@ -2347,6 +2362,7 @@ function endPointer(e){
     return;
   }
   if(d.type==='laser'){laser.cur=null;requestDraw();return}
+  if(d.type==='spot'||d.type==='spotResize'){requestDraw();return}
   if(d.type==='slice'){cgApplySlice(d.p1,d.p2);if(tool==='cutter')setTool('select');requestDraw();return}
   if(d.type==='rotPiece'){cgSnapPiece(d.o);commit();requestDraw();return}
   if(d.type==='curtain'){commit();return}
@@ -7725,7 +7741,7 @@ function penCursor(){
     '<path d="M-1.9-26V-15" stroke="#fff" stroke-opacity=".28" stroke-width="1.2" stroke-linecap="round"/></g></svg>',3,3);
 }
 const ERASE_CUR=curUrl('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="#fff" fill-opacity=".55" stroke="#fff" stroke-width="3"/><circle cx="12" cy="12" r="8.5" fill="none" stroke="#262b33" stroke-width="1.3"/></svg>',12,12);
-function setCursor(){cv.style.cursor=tool==='stamp'?'copy':tool==='laser'?'none':tool==='cutter'||tool==='smartpoly'?'crosshair':tool==='pan'||spaceDown?'grab':tool==='select'?'default':tool==='text'?'text':tool==='eraser'?eraseCursor():penCursor()}
+function setCursor(){cv.style.cursor=spot.on?'move':tool==='stamp'?'copy':tool==='laser'?'none':tool==='cutter'||tool==='smartpoly'?'crosshair':tool==='pan'||spaceDown?'grab':tool==='select'?'default':tool==='text'?'text':tool==='eraser'?eraseCursor():penCursor()}
 /* Bút dạ quang giữ màu và độ dày riêng; mọi công cụ còn lại dùng chung màu và độ dày của bút. */
 function styleOf(t){return t==='hl'?{c:hlColor,s:hlSize}:{c:penColor,s:penSize}}
 function setTool(t){if(tool==='smartpoly'&&t!=='smartpoly'&&typeof smartResetDraw==='function')smartResetDraw();commitText();tool=t;if(t!=='select')sel.clear();const st=styleOf(t);color=st.c;size=st.s;syncUI();setCursor();requestDraw()}
@@ -7770,7 +7786,92 @@ function syncUI(){
    kéo mép để hé dần lời giải theo hướng giáo viên chọn. Mép tấm che gắn với nội dung trang (toạ độ trang), cuộn, thu phóng vẫn đúng chỗ.
    Các lớp này vẽ đè lên bảng ở cuối mỗi lần vẽ (drawOverlays). */
 let PRES=false,ptr=null;
-const laser={trails:[],cur:null},spot={on:false,r:150};
+const laser={trails:[],cur:null},spot={on:false,shape:'circle',r:150,w:420,h:220,x:null,y:null};
+/* toạ độ tâm đèn rọi */
+function getSpotPos(){
+  const p=(spot.x!=null&&!ptr)?{x:spot.x,y:spot.y}:(ptr||{x:spot.x!=null?spot.x:W/2,y:spot.y!=null?spot.y:H/2});
+  return{x:clamp(p.x,20,W-20),y:clamp(p.y,20,H-20)};
+}
+/* thanh điều khiển nổi mini của đèn rọi (HUD capsule) */
+function getSpotHUDRect(curP){
+  const w=216,h=36,cx=clamp(curP.x,w/2+10,W-w/2-10);
+  const bottom=spot.shape==='rect'?(curP.y+spot.h/2):(curP.y+spot.r);
+  let cy=(bottom+h+16<H-80)?(bottom+12):(curP.y-(spot.shape==='rect'?spot.h/2:spot.r)-h-12);
+  cy=clamp(cy,10,H-h-10);
+  return{x:cx-w/2,y:cy,w,h};
+}
+function hitSpotHUD(sx,sy,curP){
+  const hb=getSpotHUDRect(curP);
+  if(sx<hb.x||sx>hb.x+hb.w||sy<hb.y||sy>hb.y+hb.h)return null;
+  const rx=sx-hb.x;
+  if(rx<52)return'shape';
+  if(rx<93)return'square';
+  if(rx<132)return'minus';
+  if(rx<171)return'plus';
+  return'close';
+}
+function hitSpotResize(sx,sy,curP){
+  if(spot.shape==='circle'){
+    const d=Math.hypot(sx-curP.x,sy-curP.y);
+    if(Math.abs(d-spot.r)<=18)return{shape:'circle'};
+    return null;
+  }
+  const x1=curP.x-spot.w/2,x2=curP.x+spot.w/2,y1=curP.y-spot.h/2,y2=curP.y+spot.h/2;
+  if(Math.hypot(sx-x1,sy-y1)<=18)return{shape:'rect',handle:'nw'};
+  if(Math.hypot(sx-x2,sy-y1)<=18)return{shape:'rect',handle:'ne'};
+  if(Math.hypot(sx-x2,sy-y2)<=18)return{shape:'rect',handle:'se'};
+  if(Math.hypot(sx-x1,sy-y2)<=18)return{shape:'rect',handle:'sw'};
+  if(Math.abs(sy-y1)<=14&&sx>=x1-8&&sx<=x2+8)return{shape:'rect',handle:'n'};
+  if(Math.abs(sy-y2)<=14&&sx>=x1-8&&sx<=x2+8)return{shape:'rect',handle:'s'};
+  if(Math.abs(sx-x1)<=14&&sy>=y1-8&&sy<=y2+8)return{shape:'rect',handle:'w'};
+  if(Math.abs(sx-x2)<=14&&sy>=y1-8&&sy<=y2+8)return{shape:'rect',handle:'e'};
+  return null;
+}
+function isInsideSpot(sx,sy,curP){
+  if(spot.shape==='circle')return Math.hypot(sx-curP.x,sy-curP.y)<spot.r-18;
+  const x1=curP.x-spot.w/2+16,x2=curP.x+spot.w/2-16,y1=curP.y-spot.h/2+16,y2=curP.y+spot.h/2-16;
+  return sx>=x1&&sx<=x2&&sy>=y1&&sy<=y2;
+}
+function scaleSpot(factor){
+  if(spot.shape==='circle'){spot.r=clamp(Math.round(spot.r*factor),40,Math.min(W,H)*0.7)}
+  else{spot.w=clamp(Math.round(spot.w*factor),80,W-40);spot.h=clamp(Math.round(spot.h*factor),40,H-40)}
+}
+function drawSpotHandles(c,curP){
+  c.save();c.fillStyle='#ffffff';c.strokeStyle='#1565d8';c.lineWidth=2;
+  const dh=(hx,hy)=>{c.beginPath();c.arc(hx,hy,5,0,Math.PI*2);c.fill();c.stroke()};
+  if(spot.shape==='circle'){
+    dh(curP.x+spot.r,curP.y);dh(curP.x-spot.r,curP.y);dh(curP.x,curP.y+spot.r);dh(curP.x,curP.y-spot.r);
+  }else{
+    const x1=curP.x-spot.w/2,x2=curP.x+spot.w/2,y1=curP.y-spot.h/2,y2=curP.y+spot.h/2;
+    dh(x1,y1);dh(x2,y1);dh(x2,y2);dh(x1,y2);
+    dh((x1+x2)/2,y1);dh((x1+x2)/2,y2);dh(x1,(y1+y2)/2);dh(x2,(y1+y2)/2);
+  }
+  c.restore();
+}
+function drawSpotHUD(c,curP){
+  const hb=getSpotHUDRect(curP);
+  c.save();
+  c.shadowColor='rgba(0,0,0,0.35)';c.shadowBlur=10;c.shadowOffsetY=3;
+  c.fillStyle='rgba(22,26,34,0.94)';
+  c.beginPath();c.roundRect(hb.x,hb.y,hb.w,hb.h,hb.h/2);c.fill();
+  c.shadowColor='transparent';
+  c.strokeStyle='rgba(255,255,255,0.22)';c.lineWidth=1;c.stroke();
+  const isC=spot.shape==='circle';
+  c.fillStyle='rgba(255,255,255,0.12)';
+  c.beginPath();c.roundRect(hb.x+4,hb.y+4,44,hb.h-8,8);c.fill();
+  c.fillStyle='#ffffff';c.font='600 12.5px '+FONT;c.textAlign='center';c.textBaseline='middle';
+  c.fillText(isC?'▭ Hộp':'◯ Tròn',hb.x+26,hb.y+hb.h/2);
+  const isSq=(!isC&&Math.abs(spot.w-spot.h)<6);
+  if(isSq){c.fillStyle='rgba(21,101,216,0.65)';c.beginPath();c.roundRect(hb.x+52,hb.y+4,38,hb.h-8,8);c.fill()}
+  c.fillStyle=isC?'rgba(255,255,255,0.4)':'#ffffff';c.font='600 12.5px '+FONT;
+  c.fillText('1:1',hb.x+71,hb.y+hb.h/2);
+  c.fillStyle='#ffffff';c.font='700 16px '+FONT;
+  c.fillText('−',hb.x+112,hb.y+hb.h/2);
+  c.fillText('+',hb.x+151,hb.y+hb.h/2);
+  c.fillStyle='#ff6b6b';c.font='600 14px '+FONT;
+  c.fillText('✕',hb.x+192,hb.y+hb.h/2);
+  c.restore();
+}
 /* tấm che của trang đang mở; side: phía bị che (bottom: hé từ trên xuống, top: hé từ dưới lên, right: hé từ trái sang, left: hé từ phải sang) */
 const curObj=()=>objs.find(o=>o.type==='curtain'),curtain={get on(){return!!curObj()}};
 const curV=o=>o.side==='left'||o.side==='right';
@@ -7780,20 +7881,90 @@ const curCovers=(o,sx,sy)=>{const e=curEdge(o);return o.side==='bottom'?sy>e:o.s
 const LASER_HOLD=700,LASER_FADE=900;
 function laserDown(e){const p=toWorld(e);laser.cur={pts:[[p.x,p.y,performance.now()]]};laser.trails.push(laser.cur);drag={type:'laser'};requestDraw()}
 function laserMove(e){if(!laser.cur)return;const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];for(const ev of(evs.length?evs:[e])){const p=toWorld(ev);laser.cur.pts.push([p.x,p.y,performance.now()])}}
-/* bấm xuống: tấm che (kéo mép, hoặc chặn vẽ lên phần đang che), bút laser */
+/* bấm xuống: tấm che (kéo mép, hoặc chặn vẽ lên phần đang che), đèn rọi (chạm kéo di chuyển/chỉnh cỡ), bút laser */
 function presDown(e){
   const r=cv.getBoundingClientRect(),sy=e.clientY-r.top;
   const co=curObj();if(co){const sx=e.clientX-r.left,e0=curEdge(co);if(Math.abs((curV(co)?sx:sy)-e0)<22){drag={type:'curtain',o:co};return true}if(curCovers(co,sx,sy))return true}
   if(tool==='laser'&&e.button===0){laserDown(e);return true}
+  if(spot.on){
+    const sx=e.clientX-r.left;
+    const curP=getSpotPos();
+    const btn=hitSpotHUD(sx,sy,curP);
+    if(btn){
+      if(btn==='shape'){
+        spot.shape=(spot.shape==='circle'?'rect':'circle');
+        toast(spot.shape==='circle'?'Đèn rọi: Hình tròn':'Đèn rọi: Hình chữ nhật');
+      }else if(btn==='square'){
+        spot.shape='rect';
+        const sz=Math.round((spot.w+spot.h)/2);
+        spot.w=sz;spot.h=sz;
+        toast('Đèn rọi: Hình vuông');
+      }else if(btn==='minus'){
+        scaleSpot(0.82);
+      }else if(btn==='plus'){
+        scaleSpot(1.22);
+      }else if(btn==='close'){
+        toggleSpot();
+      }
+      requestDraw();
+      return true;
+    }
+    const rh=hitSpotResize(sx,sy,curP);
+    if(rh){
+      drag={type:'spotResize',shape:rh.shape,handle:rh.handle,cx:curP.x,cy:curP.y,startX:sx,startY:sy,startR:spot.r,startW:spot.w,startH:spot.h};
+      return true;
+    }
+    if(isInsideSpot(sx,sy,curP)){
+      drag={type:'spot',startX:sx,startY:sy,initX:curP.x,initY:curP.y};
+      spot.x=curP.x;spot.y=curP.y;ptr={x:curP.x,y:curP.y};
+      return true;
+    }
+    spot.x=sx;spot.y=sy;ptr={x:sx,y:sy};
+    drag={type:'spot',startX:sx,startY:sy,initX:sx,initY:sy};
+    requestDraw();
+    return true;
+  }
   return false;
 }
 function presMove(e){
   if(drag.type==='laser')laserMove(e);
   else if(drag.type==='curtain'){const p=toWorld(e),o=drag.o;o.pos=curV(o)?p.x:p.y}
+  else if(drag.type==='spot'){
+    const r=cv.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top;
+    spot.x=clamp(Math.round(drag.initX+(sx-drag.startX)),20,W-20);
+    spot.y=clamp(Math.round(drag.initY+(sy-drag.startY)),20,H-20);
+    ptr={x:spot.x,y:spot.y};
+  }
+  else if(drag.type==='spotResize'){
+    const r=cv.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top;
+    if(drag.shape==='circle'){
+      const d=Math.hypot(sx-drag.cx,sy-drag.cy);
+      spot.r=clamp(Math.round(d),40,Math.min(W,H)*0.7);
+    }else{
+      const dx=sx-drag.startX,dy=sy-drag.startY,h=drag.handle;
+      if(h==='e')spot.w=clamp(Math.round(drag.startW+2*dx),80,W-40);
+      else if(h==='w')spot.w=clamp(Math.round(drag.startW-2*dx),80,W-40);
+      else if(h==='s')spot.h=clamp(Math.round(drag.startH+2*dy),40,H-40);
+      else if(h==='n')spot.h=clamp(Math.round(drag.startH-2*dy),40,H-40);
+      else if(h==='se'||h==='ne'){
+        spot.w=clamp(Math.round(drag.startW+2*dx),80,W-40);
+        spot.h=clamp(Math.round(drag.startH+(h==='se'?2:-2)*dy),40,H-40);
+      }
+      else if(h==='sw'||h==='nw'){
+        spot.w=clamp(Math.round(drag.startW-2*dx),80,W-40);
+        spot.h=clamp(Math.round(drag.startH+(h==='sw'?2:-2)*dy),40,H-40);
+      }
+    }
+  }
   requestDraw();
 }
-function trackPtr(e){const r=cv.getBoundingClientRect();ptr={x:e.clientX-r.left,y:e.clientY-r.top};if(spot.on||tool==='laser'||curtain.on)requestDraw()}
-cv.addEventListener('pointerleave',()=>{ptr=null;if(spot.on||tool==='laser')requestDraw()});
+function trackPtr(e){
+  const r=cv.getBoundingClientRect();
+  ptr={x:e.clientX-r.left,y:e.clientY-r.top};
+  if(spot.on&&e.pointerType==='mouse'&&!drag){spot.x=ptr.x;spot.y=ptr.y}
+  if(spot.on||tool==='laser'||curtain.on)requestDraw();
+}
+cv.addEventListener('pointerleave',()=>{ptr=null;if(tool==='laser')requestDraw()});
 function drawOverlays(c){
   const now=performance.now();let live=false;
   if(laser.trails.length){
@@ -7814,13 +7985,52 @@ function drawOverlays(c){
     const t=(v?'⇔':'⇕')+'  Kéo để hé hoặc che',tw=200;c.font='600 13px '+FONT;c.textAlign='center';c.textBaseline='middle';
     if(v){c.save();c.translate(e,H/2);c.rotate(-Math.PI/2);c.beginPath();c.roundRect(-tw/2,-14,tw,28,14);c.fill();c.fillStyle='#fff';c.fillText(t,0,0);c.restore()}
     else{c.beginPath();c.roundRect(W/2-tw/2,e-14,tw,28,14);c.fill();c.fillStyle='#fff';c.fillText(t,W/2,e)}}
-  if(spot.on){c.fillStyle='rgba(8,10,14,.82)';c.beginPath();c.rect(0,0,W,H);const p=ptr||{x:W/2,y:H/2};c.arc(p.x,p.y,spot.r,0,7);c.fill('evenodd');
-    c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=2;c.beginPath();c.arc(p.x,p.y,spot.r,0,7);c.stroke()}
+  if(spot.on){
+    const curP=getSpotPos();
+    c.fillStyle='rgba(8,10,14,.84)';c.beginPath();c.rect(0,0,W,H);
+    if(spot.shape==='rect'){
+      const x=curP.x-spot.w/2,y=curP.y-spot.h/2;
+      c.roundRect(x,y,spot.w,spot.h,12);
+    }else{
+      c.arc(curP.x,curP.y,spot.r,0,7);
+    }
+    c.fill('evenodd');
+    c.strokeStyle='rgba(255,255,255,.45)';c.lineWidth=2.5;c.beginPath();
+    if(spot.shape==='rect'){
+      const x=curP.x-spot.w/2,y=curP.y-spot.h/2;
+      c.roundRect(x,y,spot.w,spot.h,12);
+    }else{
+      c.arc(curP.x,curP.y,spot.r,0,7);
+    }
+    c.stroke();
+    drawSpotHandles(c,curP);
+    drawSpotHUD(c,curP);
+  }
   c.restore();
   if(live)setTimeout(requestDraw,16);
 }
-cv.addEventListener('wheel',e=>{if(spot.on&&e.shiftKey){e.stopImmediatePropagation();e.preventDefault();spot.r=clamp(spot.r*Math.exp(-clamp(e.deltaY,-100,100)*.004),50,600);requestDraw()}},{capture:true,passive:false});
-function toggleSpot(){spot.on=!spot.on;if(spot.on)toast('Đèn rọi: di chuột để soi; Shift + lăn chuột để đổi cỡ vòng sáng.');syncPres();requestDraw()}
+cv.addEventListener('wheel',e=>{
+  if(spot.on){
+    e.stopImmediatePropagation();e.preventDefault();
+    const factor=Math.exp(-clamp(e.deltaY,-100,100)*.0035);
+    if(spot.shape==='rect'){
+      if(e.altKey)spot.h=clamp(Math.round(spot.h*factor),40,H-40);
+      else if(e.shiftKey)spot.w=clamp(Math.round(spot.w*factor),80,W-40);
+      else{spot.w=clamp(Math.round(spot.w*factor),80,W-40);spot.h=clamp(Math.round(spot.h*factor),40,H-40)}
+    }else{
+      spot.r=clamp(Math.round(spot.r*factor),40,Math.min(W,H)*0.7);
+    }
+    requestDraw();
+  }
+},{capture:true,passive:false});
+function toggleSpot(){
+  spot.on=!spot.on;
+  if(spot.on){
+    if(spot.x==null||spot.y==null){spot.x=ptr?ptr.x:W/2;spot.y=ptr?ptr.y:H/2}
+    toast('Đèn rọi: Chạm kéo để di chuyển; thanh nổi để đổi hình tròn/chữ nhật/vuông.');
+  }
+  syncPres();setCursor();requestDraw();
+}
 /* đặt tấm che cho trang đang mở theo hướng hé; tấm che mới che phần lớn vùng đang thấy */
 function setCurtain(side){closePops();objs=objs.filter(o=>o.type!=='curtain');
   if(side){const w=W/view.s,h=H/view.s,pos={bottom:view.y+.3*h,top:view.y+.7*h,right:view.x+.3*w,left:view.x+.7*w}[side];
@@ -7872,7 +8082,7 @@ function setPresent(on){
   if(on===PRES)return;PRES=on;document.body.classList.toggle('present',on);closePops();
   if(on){try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{})}catch(_){}
     toast('Trình chiếu: Q bút laser · ←/→ đổi trang · Esc để thoát.')}
-  else{spot.on=false;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});if(tool==='laser')setTool('pen')}
+  else{spot.on=false;spot.x=null;spot.y=null;if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});if(tool==='laser')setTool('pen')}
   syncPres();setTimeout(()=>{resize();fit()},120);
 }
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&PRES)setPresent(false)});
@@ -10011,6 +10221,12 @@ addEventListener('keydown',e=>{
   if(tool==='smartpoly'){
     if(e.key==='Enter'){e.preventDefault();smartFinishPolygon(smartDraw.pts.length>=3);return}
     if(e.key==='Escape'&&smartDraw.pts.length){e.preventDefault();smartResetDraw();return}
+  }
+  if(spot.on){
+    if(e.key==='Escape'){e.preventDefault();toggleSpot();return}
+    if(e.key==='Tab'){e.preventDefault();spot.shape=spot.shape==='circle'?'rect':'circle';toast(spot.shape==='circle'?'Đèn rọi: Hình tròn':'Đèn rọi: Hình chữ nhật');requestDraw();return}
+    if(e.key==='+'||e.key==='='){e.preventDefault();scaleSpot(1.15);requestDraw();return}
+    if(e.key==='-'||e.key==='_'){e.preventDefault();scaleSpot(0.85);requestDraw();return}
   }
   if(e.key==='F5'){e.preventDefault();setPresent(!PRES);return}
   if(PRES&&!mod&&(e.key==='ArrowRight'||e.key==='ArrowDown')){e.preventDefault();return gotoPage(pi+1)}
