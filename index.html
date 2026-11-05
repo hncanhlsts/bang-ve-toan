@@ -1921,7 +1921,7 @@ function draw(){
     ctx.strokeStyle=theme.accent;ctx.lineWidth=1.2/view.s;ctx.setLineDash([5/view.s,4/view.s]);
     const m=4/view.s;for(const o of sel){const b=bbox(o);ctx.strokeRect(b.x-m,b.y-m,b.w+2*m,b.h+2*m)}
     ctx.setLineDash([]);const b=unionBox(sel),hs=7/view.s;
-    if([...sel].some(o=>!o.pin)){ctx.fillStyle=theme.panel;ctx.fillRect(b.x+b.w+m-hs,b.y+b.h+m-hs,2*hs,2*hs);ctx.strokeRect(b.x+b.w+m-hs,b.y+b.h+m-hs,2*hs,2*hs)}
+    if([...sel].some(o=>!o.pin&&o.type!=='piece')){ctx.fillStyle=theme.panel;ctx.fillRect(b.x+b.w+m-hs,b.y+b.h+m-hs,2*hs,2*hs);ctx.strokeRect(b.x+b.w+m-hs,b.y+b.h+m-hs,2*hs,2*hs)}
     /* đối tượng đã khoá: ổ khoá nhỏ ở góc trên bên phải */
     for(const o of sel)if(o.pin){const q=bbox(o),R=11/view.s,x=q.x+q.w+m,y=q.y-m;ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();
       ctx.strokeStyle='#fff';ctx.lineWidth=1.6/view.s;ctx.fillStyle='#fff';ctx.fillRect(x-4.5/view.s,y-1/view.s,9/view.s,7/view.s);ctx.beginPath();ctx.arc(x,y-1.5/view.s,3/view.s,Math.PI,0);ctx.stroke();ctx.strokeStyle=theme.accent}
@@ -2062,7 +2062,7 @@ function simplifyStroke(p,tol){
 }
 /* ngón tay, bút trên bảng tương tác kém chính xác hơn chuột: vùng bấm của tay cầm rộng hơn */
 const touchTol=e=>e&&e.pointerType&&e.pointerType!=='mouse'?2.2:1;
-function onHandle(p,e){if(!sel.size)return false;const b=unionBox(sel),m=4/view.s;return Math.hypot(p.x-b.x-b.w-m,p.y-b.y-b.h-m)<=11*touchTol(e)/view.s}
+function onHandle(p,e){if(!sel.size||[...sel].every(o=>o.type==='piece'))return false;const b=unionBox(sel),m=4/view.s;return Math.hypot(p.x-b.x-b.w-m,p.y-b.y-b.h-m)<=11*touchTol(e)/view.s}
 cv.addEventListener('pointerdown',e=>{
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
   /* nhiều người viết cùng lúc: xét trước, để ngón thứ hai không bị hiểu là thu phóng */
@@ -7744,7 +7744,7 @@ const ERASE_CUR=curUrl('<svg xmlns="http://www.w3.org/2000/svg" width="24" heigh
 function setCursor(){cv.style.cursor=spot.on?'move':tool==='stamp'?'copy':tool==='laser'?'none':tool==='cutter'||tool==='smartpoly'?'crosshair':tool==='pan'||spaceDown?'grab':tool==='select'?'default':tool==='text'?'text':tool==='eraser'?eraseCursor():penCursor()}
 /* Bút dạ quang giữ màu và độ dày riêng; mọi công cụ còn lại dùng chung màu và độ dày của bút. */
 function styleOf(t){return t==='hl'?{c:hlColor,s:hlSize}:{c:penColor,s:penSize}}
-function setTool(t){if(tool==='smartpoly'&&t!=='smartpoly'&&typeof smartResetDraw==='function')smartResetDraw();commitText();tool=t;if(t!=='select')sel.clear();const st=styleOf(t);color=st.c;size=st.s;syncUI();setCursor();requestDraw()}
+function setTool(t){if(tool==='smartpoly'&&t!=='smartpoly'&&typeof smartResetDraw==='function')smartResetDraw();commitText();tool=t;if(t!=='select')sel.clear();const st=styleOf(t);color=st.c;size=st.s;syncUI();setCursor();requestDraw();if(t==='cutter')toast('✂️ Dao cắt: Hãy vạch một đường cắt xuyên qua hình để xẻ làm các mảnh!')}
 function setColor(c){
   /* Đang chọn sẵn đối tượng: chỉ đổi màu chúng. Còn lại: đổi màu cho công cụ đang dùng; nếu đang tẩy hay kéo trang thì chuyển sang bút. */
   let ch=false;
